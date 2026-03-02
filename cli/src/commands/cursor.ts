@@ -67,6 +67,13 @@ export const cursorCommand: CommandDefinition = {
                     }
                 } else if (arg === '--continue') {
                     unknownArgs.push(arg)
+                } else if (arg === '--hapi-starting-mode') {
+                    const value = commandArgs[++i]
+                    if (value !== 'local' && value !== 'remote') {
+                        throw new Error('Invalid --hapi-starting-mode (expected local or remote)')
+                    }
+                    // consume only; do not forward to cursorArgs
+                    continue
                 } else {
                     unknownArgs.push(arg)
                 }

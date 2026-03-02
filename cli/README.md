@@ -29,7 +29,7 @@ Run Claude Code, Codex, Cursor Agent, Gemini, or OpenCode sessions from your ter
 - `hapi codex resume <sessionId>` - Resume existing Codex session.
 - `hapi cursor` - Start Cursor Agent mode. See `src/cursor/runCursor.ts`.
   Supports `hapi cursor resume <chatId>`, `hapi cursor --continue`, `--mode plan|ask`, `--yolo`, `--model`.
-  Note: Cursor supports local mode only; remote mode is not yet implemented.
+  Local and remote modes supported; remote uses `agent -p` with stream-json.
 - `hapi gemini` - Start Gemini mode via ACP. See `src/agent/runners/runAgentSession.ts`.
   Note: Gemini runs in remote mode only; it waits for messages from the hub UI/Telegram.
 - `hapi opencode` - Start OpenCode mode via ACP. See `src/opencode/runOpencode.ts`.

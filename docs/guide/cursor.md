@@ -38,10 +38,14 @@ hapi cursor --model <model>    # Specify model
 
 Set mode via `--mode` flag or change from the web UI during a session.
 
-## Current Limitations
+## Modes
 
-- **Local mode only** - Cursor Agent runs in your terminal. Remote mode (control from phone when no terminal) is not yet implemented.
-- **Runner mode** - Spawning Cursor sessions remotely via the runner is not supported. Use `hapi cursor` from the terminal.
+- **Local mode** - Run `hapi cursor` from terminal. Full interactive experience.
+- **Remote mode** - Spawn from web/phone when no terminal. Uses `agent -p` with `--output-format stream-json` and `--trust`. Each user message spawns one agent process; session continues via `--resume`.
+
+## Limitations
+
+- **Tool approval** - In remote mode, `--trust` is used; tools run without per-request approval. Use `--yolo` for full bypass.
 - **Session resume** - Pass `--resume <chatId>` or `--continue` to resume. Use `agent ls` to list previous chats and get chat IDs.
 
 ## Integration
