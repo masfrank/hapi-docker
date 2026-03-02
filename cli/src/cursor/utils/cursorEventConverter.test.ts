@@ -13,10 +13,10 @@ describe('cursorEventConverter', () => {
             const event = parseCursorEvent(line);
             expect(event).not.toBeNull();
             expect(event?.type).toBe('system');
-            expect((event as CursorStreamEvent).subtype).toBe('init');
-            expect((event as CursorStreamEvent & { session_id: string }).session_id).toBe(
-                'cec26d70-d2d5-48ac-a88b-9e820eb201cf'
-            );
+            if (event && event.type === 'system') {
+                expect(event.subtype).toBe('init');
+                expect(event.session_id).toBe('cec26d70-d2d5-48ac-a88b-9e820eb201cf');
+            }
         });
 
         it('parses assistant event', () => {
