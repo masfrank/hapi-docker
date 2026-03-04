@@ -127,6 +127,7 @@ export async function startRunner(): Promise<void> {
 
     // Session spawning awaiter system
     const pidToAwaiter = new Map<number, (session: TrackedSession) => void>();
+    const pidToSpawnReject = new Map<number, (errorMessage: string) => void>();
 
     // Helper functions
     const getCurrentChildren = () => Array.from(pidToTrackedSession.values());
@@ -425,6 +426,7 @@ export async function startRunner(): Promise<void> {
           // Set timeout for webhook
           const timeout = setTimeout(() => {
             pidToAwaiter.delete(pid);
+            pidToSpawnReject.delete(pid);
             logger.debug(`[RUNNER RUN] Session webhook timeout for PID ${pid}`);
             logStderrTail();
             resolve({
@@ -435,9 +437,19 @@ export async function startRunner(): Promise<void> {
             // even though session was still created successfully in ~2 more seconds
           }, 15_000);
 
+          // Register reject for early child exit
+          pidToSpawnReject.set(pid, (errorMessage) => {
+            clearTimeout(timeout);
+            pidToAwaiter.delete(pid);
+            pidToSpawnReject.delete(pid);
+            logStderrTail();
+            resolve({ type: 'error', errorMessage });
+          });
+
           // Register awaiter
           pidToAwaiter.set(pid, (completedSession) => {
             clearTimeout(timeout);
+            pidToSpawnReject.delete(pid);
             logger.debug(`[RUNNER RUN] Session ${completedSession.happySessionId} fully spawned with webhook`);
             resolve({
               type: 'success',
@@ -500,6 +512,12 @@ export async function startRunner(): Promise<void> {
     const onChildExited = (pid: number) => {
       logger.debug(`[RUNNER RUN] Removing exited process PID ${pid} from tracking`);
       pidToTrackedSession.delete(pid);
+
+      // Resolve any pending spawn awaiter immediately on child exit
+      const reject = pidToSpawnReject.get(pid);
+      if (reject) {
+        reject(`Agent process exited unexpectedly (PID ${pid})`);
+      }
     };
 
     // Start control server

@@ -77,6 +77,15 @@ export function getHappyCliCommand(args: string[]): HappyCliCommand {
   };
 }
 
+/**
+ * Get the real working directory for spawned CLI processes.
+ * In dev mode, spawnHappyCLI overrides cwd to cli/ for tsconfig resolution
+ * and passes the real project directory via HAPI_SPAWN_CWD.
+ */
+export function getSpawnedWorkingDirectory(): string {
+  return process.env.HAPI_SPAWN_CWD || process.cwd();
+}
+
 export function spawnHappyCLI(args: string[], options: SpawnOptions = {}): ChildProcess {
 
   let directory: string | URL | undefined;
@@ -105,5 +114,21 @@ export function spawnHappyCLI(args: string[], options: SpawnOptions = {}): Child
     }
   }
   
+  // In dev mode, Bun resolves @/ path aliases from tsconfig.json relative to cwd.
+  // Override cwd to cli/ so aliases resolve, and pass the real working directory via env.
+  if (!isBunCompiled() && options.cwd) {
+    const projectRoot = projectPath();
+    const realCwd = typeof options.cwd === 'string' ? options.cwd : options.cwd.toString();
+    options = {
+      ...options,
+      cwd: projectRoot,
+      env: {
+        ...options.env,
+        ...process.env,
+        HAPI_SPAWN_CWD: realCwd
+      }
+    };
+  }
+
   return spawn(spawnCommand, spawnArgs, options);
 }

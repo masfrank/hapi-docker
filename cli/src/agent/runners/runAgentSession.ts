@@ -7,7 +7,7 @@ import { convertAgentMessage } from '@/agent/messageConverter';
 import { PermissionAdapter } from '@/agent/permissionAdapter';
 import type { AgentBackend, PromptContent } from '@/agent/types';
 import { startHappyServer } from '@/claude/utils/startHappyServer';
-import { getHappyCliCommand } from '@/utils/spawnHappyCLI';
+import { getHappyCliCommand, getSpawnedWorkingDirectory } from '@/utils/spawnHappyCLI';
 import { registerKillSessionHandler } from '@/claude/registerKillSessionHandler';
 import { bootstrapSession } from '@/agent/sessionFactory';
 import { formatMessageWithAttachments } from '@/utils/attachmentFormatter';
@@ -34,7 +34,7 @@ export async function runAgentSession(opts: {
     const { session } = await bootstrapSession({
         flavor: opts.agentType,
         startedBy: opts.startedBy ?? 'terminal',
-        workingDirectory: process.cwd(),
+        workingDirectory: getSpawnedWorkingDirectory(),
         agentState: initialState
     });
 
@@ -67,7 +67,7 @@ export async function runAgentSession(opts: {
     ];
 
     const agentSessionId = await backend.newSession({
-        cwd: process.cwd(),
+        cwd: getSpawnedWorkingDirectory(),
         mcpServers
     });
 
