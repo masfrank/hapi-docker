@@ -133,7 +133,6 @@ export function useAppearance(): { appearance: AppearancePreference; setAppearan
         const onStorage = (event: StorageEvent) => {
             if (event.key !== APPEARANCE_KEY) return
             setAppearanceState(parseAppearance(event.newValue))
-            updateScheme()
         }
 
         window.addEventListener('storage', onStorage)
@@ -171,6 +170,13 @@ export function initializeTheme(): void {
             // Browser system preference changes
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
             mediaQuery.addEventListener('change', updateScheme)
+        }
+
+        // Cross-tab appearance sync: update theme when another tab changes localStorage
+        if (typeof window !== 'undefined') {
+            window.addEventListener('storage', (event: StorageEvent) => {
+                if (event.key === APPEARANCE_KEY) updateScheme()
+            })
         }
     }
 }
