@@ -117,10 +117,15 @@ export function shouldAttemptSlashEntryRefetch(
     now: number,
     cooldownMs: number = SLASH_ENTRY_COOLDOWN_MS
 ): boolean {
-    if (!state.hasFetchedSuccessfully || state.lastFetchError !== null) {
+    const elapsed = now - state.lastEntryRefetchAt
+
+    if (state.lastFetchError !== null) {
+        return elapsed >= cooldownMs
+    }
+    if (!state.hasFetchedSuccessfully) {
         return true
     }
-    return now - state.lastEntryRefetchAt >= cooldownMs
+    return elapsed >= cooldownMs
 }
 
 export function useSlashCommands(

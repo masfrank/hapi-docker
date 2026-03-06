@@ -67,7 +67,7 @@ describe('shouldAttemptSlashEntryRefetch', () => {
         expect(result).toBe(true)
     })
 
-    it('returns true when previous fetch failed', () => {
+    it('returns false inside cooldown when previous fetch failed', () => {
         const result = shouldAttemptSlashEntryRefetch(
             {
                 hasFetchedSuccessfully: true,
@@ -75,6 +75,20 @@ describe('shouldAttemptSlashEntryRefetch', () => {
                 lastEntryRefetchAt: 1000,
             },
             1500,
+            4000
+        )
+
+        expect(result).toBe(false)
+    })
+
+    it('returns true after cooldown when previous fetch failed', () => {
+        const result = shouldAttemptSlashEntryRefetch(
+            {
+                hasFetchedSuccessfully: true,
+                lastFetchError: 'network error',
+                lastEntryRefetchAt: 1000,
+            },
+            5000,
             4000
         )
 
