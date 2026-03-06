@@ -7,15 +7,15 @@
 ::: code-group
 
 ```bash [npm]
-npm install -g @twsxtd/hapi --registry=https://registry.npmjs.org
+npm install -g @jlovec/hapi --registry=https://registry.npmjs.org
 ```
 
 ```bash [Homebrew]
-brew install tiann/tap/hapi
+brew install jlovec1024/tap/hapi
 ```
 
 ```bash [npx (one-off)]
-npx @twsxtd/hapi
+npx @jlovec/hapi
 ```
 
 :::

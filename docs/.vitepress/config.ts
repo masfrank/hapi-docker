@@ -29,7 +29,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/tiann/hapi' }
+      { icon: 'github', link: 'https://github.com/jlovec1024/hapi' }
     ],
 
     footer: {
