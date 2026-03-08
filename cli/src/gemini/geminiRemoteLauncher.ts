@@ -71,12 +71,23 @@ class GeminiRemoteLauncher extends RemoteLauncherBase {
         await backend.initialize();
 
         const sessionConfig = { cwd: session.path, mcpServers: toAcpMcpServers(mcpServers) };
-        const acpSessionId = session.sessionId
-            ? await backend.loadSession({ ...sessionConfig, sessionId: session.sessionId })
-            : await backend.newSession(sessionConfig);
+        let acpSessionId: string;
+        let didResume = false;
+        if (session.sessionId) {
+            try {
+                acpSessionId = await backend.loadSession({ ...sessionConfig, sessionId: session.sessionId });
+                didResume = true;
+            } catch (error) {
+                logger.warn('[gemini-remote] resume failed, starting new session', error);
+                session.sendSessionEvent({ type: 'message', message: 'Gemini resume failed; starting a new session.' });
+                acpSessionId = await backend.newSession(sessionConfig);
+            }
+        } else {
+            acpSessionId = await backend.newSession(sessionConfig);
+        }
         session.onSessionFound(acpSessionId);
 
-        if (session.sessionId) {
+        if (didResume && session.sessionId) {
             await this.replayHistoricalMessages(session.sessionId);
         }
 
