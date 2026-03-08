@@ -265,7 +265,9 @@ export function applyTeamStateDelta(
             const existing = taskMap.get(task.id)
             if (existing) {
                 taskMap.set(task.id, { ...existing, ...task })
-            } else {
+            } else if (task.title) {
+                // Only insert new tasks that have a title (required by schema).
+                // Orphan TaskUpdate without title is ignored to prevent schema validation failure.
                 taskMap.set(task.id, task)
             }
         }
