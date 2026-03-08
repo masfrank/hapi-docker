@@ -23,12 +23,6 @@ jobs:
             - run: bun run build:single-exe:all
             - name: Prepare npm packages
               run: cd cli && bun run prepare-npm-packages
-            - name: Publish npm platform packages
-              run: |
-                  set -euo pipefail
-                  VERSION="${GITHUB_REF#refs/tags/v}"
-                  cd cli
-                  bun run release-all "$VERSION" --publish-npm --skip-build
             - name: Package release artifacts
               run: |
                   cd cli/dist-exe
