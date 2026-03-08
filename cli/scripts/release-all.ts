@@ -62,17 +62,24 @@ async function main(): Promise<void> {
     const flags = [dryRun && 'dry-run', publishNpm && 'publish-npm', skipBuild && 'skip-build'].filter(Boolean);
     console.log(`\n🚀 Starting release v${version}${flags.length ? ` (${flags.join(', ')})` : ''}\n`);
 
-    // Pre-check: Ensure we're on main branch
+    // Pre-checks
     console.log('🔍 Pre-checks...');
     const currentBranch = execSync('git branch --show-current', { encoding: 'utf-8', cwd: repoRoot }).trim();
-    if (currentBranch !== 'main') {
+    const isGithubTagRelease = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REF_TYPE === 'tag';
+
+    if (!isGithubTagRelease && currentBranch !== 'main') {
         console.error(`❌ Release must be run from main branch (current: ${currentBranch})`);
         process.exit(1);
     }
-    console.log('   ✓ On main branch');
 
-    // Pre-check: Ensure npm is logged in (skip in dry-run mode)
-    if (!dryRun) {
+    if (isGithubTagRelease) {
+        console.log(`   ✓ Running in GitHub tag release context: ${process.env.GITHUB_REF_NAME ?? 'unknown tag'}`);
+    } else {
+        console.log('   ✓ On main branch');
+    }
+
+    // Pre-check: Ensure npm is logged in (skip in CI trusted publishing or dry-run mode)
+    if (!dryRun && !isGithubTagRelease) {
         try {
             const npmUser = execSync('npm whoami', { encoding: 'utf-8' }).trim();
             console.log(`   ✓ Logged in to npm as: ${npmUser}`);
@@ -80,8 +87,10 @@ async function main(): Promise<void> {
             console.error('❌ Not logged in to npm. Run `npm login` first.');
             process.exit(1);
         }
-    } else {
+    } else if (dryRun) {
         console.log('   ✓ Skipping npm login check (dry-run)');
+    } else {
+        console.log('   ✓ Skipping npm login check (GitHub tag trusted publishing)');
     }
 
     // Step 1: Update package.json version
@@ -109,13 +118,13 @@ async function main(): Promise<void> {
     const platforms = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64'];
     for (const platform of platforms) {
         const npmDir = join(projectRoot, 'npm', platform);
-        run(`npm publish --access public${dryRun ? ' --dry-run' : ''}`, npmDir);
+        run(`npm publish --access public${dryRun ? ' --dry-run' : ''}${dryRun ? '' : ' --provenance --registry=https://registry.npmjs.org'}`, npmDir);
     }
 
     // Step 4: Publish main package
     console.log('\n📤 Step 4: Publishing main package...');
     const mainNpmDir = join(projectRoot, 'npm', 'main');
-    run(`npm publish --access public${dryRun ? ' --dry-run' : ''}`, mainNpmDir);
+    run(`npm publish --access public${dryRun ? ' --dry-run' : ''}${dryRun ? '' : ' --provenance --registry=https://registry.npmjs.org'}`, mainNpmDir);
 
     // --publish-npm 模式到此结束
     if (publishNpm) {

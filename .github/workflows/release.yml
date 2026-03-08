@@ -25,11 +25,14 @@ jobs:
               run: cd cli && bun run prepare-npm-packages
             - name: Publish npm platform packages
               env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+                  NODE_AUTH_TOKEN: ''
+                  NPM_TOKEN: ''
               run: |
+                  set -euo pipefail
+                  unset NODE_AUTH_TOKEN NPM_TOKEN
                   VERSION="${GITHUB_REF#refs/tags/v}"
                   cd cli
-                  bun run release-all "$VERSION" --publish-npm
+                  bun run release-all "$VERSION" --publish-npm --skip-build
             - name: Package release artifacts
               run: |
                   cd cli/dist-exe
