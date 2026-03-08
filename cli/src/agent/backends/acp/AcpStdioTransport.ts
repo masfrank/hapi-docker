@@ -114,9 +114,11 @@ export class AcpStdioTransport {
         const signal = options?.signal;
 
         return new Promise<unknown>((resolve, reject) => {
+            let timer: ReturnType<typeof setTimeout> | null = null;
+
             const cleanup = () => {
                 this.pending.delete(id);
-                clearTimeout(timer);
+                if (timer !== null) clearTimeout(timer);
                 signal?.removeEventListener('abort', onAbort);
             };
 
@@ -125,15 +127,12 @@ export class AcpStdioTransport {
                 reject(new DOMException('ACP request aborted', 'AbortError'));
             };
 
-            const timer = Number.isFinite(timeoutMs)
-                ? setTimeout(() => {
+            if (Number.isFinite(timeoutMs)) {
+                timer = setTimeout(() => {
                     cleanup();
                     reject(new Error(`ACP request '${method}' timed out after ${timeoutMs}ms`));
-                }, timeoutMs as number)
-                : null;
-
-            if (timer !== null) {
-                (timer as unknown as { unref?: () => void }).unref?.();
+                }, timeoutMs as number);
+                timer.unref?.();
             }
 
             if (signal?.aborted) {
