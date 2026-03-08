@@ -10,6 +10,7 @@ import type { PermissionMode } from './types';
 import { createGeminiBackend } from './utils/geminiBackend';
 import { GeminiPermissionHandler } from './utils/permissionHandler';
 import { resolveGeminiRuntimeConfig } from './utils/config';
+import { findGeminiTranscriptPath, readGeminiTranscript } from './utils/sessionScanner';
 
 class GeminiRemoteLauncher extends RemoteLauncherBase {
     private readonly session: GeminiSession;
@@ -73,6 +74,10 @@ class GeminiRemoteLauncher extends RemoteLauncherBase {
             ? await backend.loadSession({ ...sessionConfig, sessionId: session.sessionId })
             : await backend.newSession(sessionConfig);
         session.onSessionFound(acpSessionId);
+
+        if (session.sessionId) {
+            await this.replayHistoricalMessages(session.sessionId);
+        }
 
         this.permissionHandler = new GeminiPermissionHandler(
             session.client,
@@ -177,6 +182,24 @@ class GeminiRemoteLauncher extends RemoteLauncherBase {
             default: {
                 const _exhaustive: never = message;
                 return _exhaustive;
+            }
+        }
+    }
+
+    private async replayHistoricalMessages(sessionId: string): Promise<void> {
+        const transcriptPath = await findGeminiTranscriptPath(sessionId);
+        if (!transcriptPath) {
+            logger.debug('[gemini-remote] No transcript file found for resume session, skipping history replay');
+            return;
+        }
+        const transcript = await readGeminiTranscript(transcriptPath);
+        const messages = transcript?.messages ?? [];
+        logger.debug(`[gemini-remote] Replaying ${messages.length} historical messages from ${transcriptPath}`);
+        for (const message of messages) {
+            if (message.type === 'user' && typeof message.content === 'string') {
+                this.messageBuffer.addMessage(message.content, 'user');
+            } else if (message.type === 'gemini' && typeof message.content === 'string') {
+                this.messageBuffer.addMessage(message.content, 'assistant');
             }
         }
     }
