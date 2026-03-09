@@ -1,39 +1,39 @@
 # hapi-hub
 
-HTTP API + realtime updates for hapi hub.
+hapi hub 的 HTTP API 与实时更新服务。
 
-## What it does
+## 功能
 
-- HTTP API for sessions, messages, permissions, machines, and files.
-- Server-Sent Events stream for live updates in the web app.
-- Socket.IO channel for CLI connections.
-- Serves the web app from `web/dist` or embedded assets in the single binary.
-- Persists state in SQLite.
+- 提供 sessions、messages、permissions、machines、files 的 HTTP API。
+- 提供 Server-Sent Events（SSE）流，为 web app 推送实时更新。
+- 提供供 CLI 连接使用的 Socket.IO 通道。
+- 从 `web/dist`（或单二进制内嵌资源）提供 web app 静态资源。
+- 使用 SQLite 持久化状态。
 
-## Configuration
+## 配置
 
-See `src/configuration.ts` for all options.
+全部配置项见 `src/configuration.ts`。
 
-### Required
+### 必填
 
-- `CLI_API_TOKEN` - Base shared secret used by CLI and web login. Clients append `:<namespace>` for isolation. Auto-generated on first run if not set.
+- `CLI_API_TOKEN`：CLI 与 web 登录共用的基础密钥。客户端会追加 `:<namespace>` 实现隔离。若未设置，首次运行自动生成。
 
-### Optional
+### 可选
 
-- `HAPI_LISTEN_HOST` - HTTP bind address (default: 127.0.0.1).
-- `HAPI_LISTEN_PORT` - HTTP port (default: 3006).
-- `HAPI_PUBLIC_URL` - Public HTTPS URL. Also used to derive default CORS origins for the web app.
-- `CORS_ORIGINS` - Comma-separated origins, or `*`.
-- `HAPI_HOME` - Data directory (default: ~/.hapi).
-- `DB_PATH` - SQLite database path (default: HAPI_HOME/hapi.db).
-- `HAPI_RELAY_API` - Relay API domain (default: relay.hapi.run).
-- `HAPI_RELAY_AUTH` - Relay auth key (default: hapi).
-- `HAPI_RELAY_FORCE_TCP` - Force TCP relay mode (true/1).
-- `VAPID_SUBJECT` - Contact email/URL for Web Push.
+- `HAPI_LISTEN_HOST`：HTTP 监听地址（默认：`127.0.0.1`）。
+- `HAPI_LISTEN_PORT`：HTTP 端口（默认：`3006`）。
+- `HAPI_PUBLIC_URL`：对外 HTTPS URL，同时用于推导 web app 默认 CORS 来源。
+- `CORS_ORIGINS`：逗号分隔来源或 `*`。
+- `HAPI_HOME`：数据目录（默认：`~/.hapi`）。
+- `DB_PATH`：SQLite 数据库路径（默认：`HAPI_HOME/hapi.db`）。
+- `HAPI_RELAY_API`：Relay API 域名（默认：`relay.hapi.run`）。
+- `HAPI_RELAY_AUTH`：Relay 认证 key（默认：`hapi`）。
+- `HAPI_RELAY_FORCE_TCP`：强制 TCP relay 模式（`true/1`）。
+- `VAPID_SUBJECT`：Web Push 联系邮箱/URL。
 
-## Running
+## 运行
 
-Binary (single executable):
+二进制（单可执行文件）：
 
 ```bash
 export CLI_API_TOKEN="shared-secret"
@@ -42,9 +42,9 @@ export HAPI_PUBLIC_URL="https://your-domain.example"
 hapi hub
 ```
 
-`hapi server` remains supported as an alias.
+`hapi server` 仍支持作为别名。
 
-From source:
+源码方式：
 
 ```bash
 bun install
@@ -53,164 +53,165 @@ bun run dev:hub
 
 ## HTTP API
 
-See `src/web/routes/` for all endpoints.
+全部端点见 `src/web/routes/`。
 
-### Authentication (`src/web/routes/auth.ts`)
+### Authentication（`src/web/routes/auth.ts`）
 
-- `POST /api/auth` - Get JWT token (`CLI_API_TOKEN[:namespace]`).
+- `POST /api/auth`：获取 JWT token（`CLI_API_TOKEN[:namespace]`）。
 
-### Sessions (`src/web/routes/sessions.ts`)
+### Sessions（`src/web/routes/sessions.ts`）
 
-- `GET /api/sessions` - List all sessions.
-- `GET /api/sessions/:id` - Get session details.
-- `POST /api/sessions/:id/abort` - Abort session.
-- `POST /api/sessions/:id/switch` - Switch session to remote mode.
-- `POST /api/sessions/:id/resume` - Resume inactive session.
-- `POST /api/sessions/:id/upload` - Upload file (base64, max 50MB).
-- `POST /api/sessions/:id/upload/delete` - Delete uploaded file.
-- `POST /api/sessions/:id/archive` - Archive active session.
-- `PATCH /api/sessions/:id` - Rename session.
-- `DELETE /api/sessions/:id` - Delete inactive session.
-- `GET /api/sessions/:id/slash-commands` - List slash commands.
-- `GET /api/sessions/:id/skills` - List skills.
-- `POST /api/sessions/:id/permission-mode` - Set permission mode.
-- `POST /api/sessions/:id/model` - Set model preference.
+- `GET /api/sessions`：列出所有会话。
+- `GET /api/sessions/:id`：获取会话详情。
+- `POST /api/sessions/:id/abort`：中止会话。
+- `POST /api/sessions/:id/switch`：切换会话到 remote 模式。
+- `POST /api/sessions/:id/resume`：恢复非活跃会话。
+- `POST /api/sessions/:id/upload`：上传文件（base64，最大 50MB）。
+- `POST /api/sessions/:id/upload/delete`：删除已上传文件。
+- `POST /api/sessions/:id/archive`：归档活跃会话。
+- `PATCH /api/sessions/:id`：重命名会话。
+- `DELETE /api/sessions/:id`：删除非活跃会话。
+- `GET /api/sessions/:id/slash-commands`：列出 slash commands。
+- `GET /api/sessions/:id/skills`：列出 skills。
+- `POST /api/sessions/:id/permission-mode`：设置 permission mode。
+- `POST /api/sessions/:id/model`：设置模型偏好。
 
-### Messages (`src/web/routes/messages.ts`)
+### Messages（`src/web/routes/messages.ts`）
 
-- `GET /api/sessions/:id/messages` - Get messages (paginated).
-- `POST /api/sessions/:id/messages` - Send message.
+- `GET /api/sessions/:id/messages`：获取消息（分页）。
+- `POST /api/sessions/:id/messages`：发送消息。
 
-### Permissions (`src/web/routes/permissions.ts`)
+### Permissions（`src/web/routes/permissions.ts`）
 
-- `POST /api/sessions/:id/permissions/:requestId/approve` - Approve permission.
-- `POST /api/sessions/:id/permissions/:requestId/deny` - Deny permission.
+- `POST /api/sessions/:id/permissions/:requestId/approve`：批准权限。
+- `POST /api/sessions/:id/permissions/:requestId/deny`：拒绝权限。
 
-### Machines (`src/web/routes/machines.ts`)
+### Machines（`src/web/routes/machines.ts`）
 
-- `GET /api/machines` - List online machines.
-- `POST /api/machines/:id/spawn` - Spawn new session on machine.
-- `POST /api/machines/:id/paths/exists` - Check if path exists.
+- `GET /api/machines`：列出在线机器。
+- `POST /api/machines/:id/spawn`：在指定机器上拉起新会话。
+- `POST /api/machines/:id/paths/exists`：检查路径是否存在。
 
-### Git/Files (`src/web/routes/git.ts`)
+### Git/Files（`src/web/routes/git.ts`）
 
-- `GET /api/sessions/:id/git-status` - Git status.
-- `GET /api/sessions/:id/git-diff-numstat` - Diff summary.
-- `GET /api/sessions/:id/git-diff-file` - File-specific diff.
-- `GET /api/sessions/:id/file` - Read file content.
-- `GET /api/sessions/:id/files` - File search with ripgrep.
+- `GET /api/sessions/:id/git-status`：Git 状态。
+- `GET /api/sessions/:id/git-diff-numstat`：Diff 摘要。
+- `GET /api/sessions/:id/git-diff-file`：指定文件 diff。
+- `GET /api/sessions/:id/file`：读取文件内容。
+- `GET /api/sessions/:id/files`：用 ripgrep 搜索文件。
 
-### Events (`src/web/routes/events.ts`)
+### Events（`src/web/routes/events.ts`）
 
-- `GET /api/events` - SSE stream for live updates.
-- `POST /api/visibility` - Report client visibility state.
+- `GET /api/events`：实时更新 SSE 流。
+- `POST /api/visibility`：上报客户端可见性状态。
 
-### Push Notifications (`src/web/routes/push.ts`)
+### Push Notifications（`src/web/routes/push.ts`）
 
-- `GET /api/push/vapid-public-key` - Get VAPID public key.
-- `POST /api/push/subscribe` - Subscribe to push notifications.
-- `DELETE /api/push/subscribe` - Unsubscribe.
+- `GET /api/push/vapid-public-key`：获取 VAPID 公钥。
+- `POST /api/push/subscribe`：订阅推送通知。
+- `DELETE /api/push/subscribe`：取消订阅。
 
-### CLI (`src/web/routes/cli.ts`)
+### CLI（`src/web/routes/cli.ts`）
 
-- `POST /cli/sessions` - Create/load session.
-- `GET /cli/sessions/:id` - Get session by ID.
-- `POST /cli/machines` - Create/load machine.
-- `GET /cli/machines/:id` - Get machine by ID.
+- `POST /cli/sessions`：创建/加载会话。
+- `GET /cli/sessions/:id`：按 ID 获取会话。
+- `POST /cli/machines`：创建/加载机器。
+- `GET /cli/machines/:id`：按 ID 获取机器。
 
 ## Socket.IO
 
-See `src/socket/handlers/cli.ts` for event handlers.
+事件处理见 `src/socket/handlers/cli.ts`。
 
-Namespace: `/cli`
+Namespace：`/cli`
 
-### Client events (CLI to hub)
+### 客户端事件（CLI -> hub）
 
-- `message` - Send message to session.
-- `update-metadata` - Update session metadata.
-- `update-state` - Update agent state.
-- `session-alive` - Keep session active.
-- `session-end` - Mark session ended.
-- `machine-alive` - Keep machine online.
-- `rpc-register` - Register RPC handler.
-- `rpc-unregister` - Unregister RPC handler.
+- `message`：向会话发送消息。
+- `update-metadata`：更新会话元数据。
+- `update-state`：更新 agent 状态。
+- `session-alive`：保持会话活跃。
+- `session-end`：标记会话结束。
+- `machine-alive`：保持机器在线。
+- `rpc-register`：注册 RPC handler。
+- `rpc-unregister`：注销 RPC handler。
 
-### Terminal events (web to hub)
+### Terminal 事件（web -> hub）
 
-- `terminal:create` - Open terminal for session.
-- `terminal:write` - Send input.
-- `terminal:resize` - Resize dimensions.
-- `terminal:close` - Close terminal.
+- `terminal:create`：为会话打开终端。
+- `terminal:write`：发送终端输入。
+- `terminal:resize`：调整终端尺寸。
+- `terminal:close`：关闭终端。
 
-### Hub events (hub to clients)
+### Hub 事件（hub -> clients）
 
-- `update` - Broadcast session/message updates.
-- `rpc-request` - Incoming RPC call.
+- `update`：广播会话/消息更新。
+- `rpc-request`：传入 RPC 调用。
 
-See `src/socket/rpcRegistry.ts` for RPC routing.
+RPC 路由见 `src/socket/rpcRegistry.ts`。
 
-## Core Logic
+## 核心逻辑
 
-See `src/sync/syncEngine.ts` for the main session/message manager:
+主会话/消息管理器见 `src/sync/syncEngine.ts`，包括：
 
-- In-memory session cache with versioning.
-- Message pagination and retrieval.
-- Permission approval/denial.
-- RPC method routing via Socket.IO.
-- Event publishing to SSE.
-- Git operations and file search.
-- Activity tracking and timeouts.
+- 带版本控制的内存会话缓存。
+- 消息分页与查询。
+- 权限批准/拒绝。
+- 基于 Socket.IO 的 RPC 路由。
+- 向 SSE 发布事件。
+- Git 操作与文件搜索。
+- 活跃度追踪与超时控制。
 
-## Storage
+## 存储
 
-See `src/store/index.ts` for SQLite persistence:
+SQLite 持久化见 `src/store/index.ts`，包括：
 
-- Sessions with metadata and agent state.
-- Messages with pagination support.
-- Machines with runner state.
-- Todo extraction from messages.
-- Users table (includes namespace).
+- 带元数据与 agent 状态的 sessions。
+- 支持分页的 messages。
+- 带 runner 状态的 machines。
+- 从消息中提取的 todo。
+- users 表（包含 namespace）。
 
-## Source structure
+## 源码结构
 
-- `src/web/` - HTTP service and routes.
-- `src/socket/` - Socket.IO setup and handlers.
-- `src/socket/handlers/cli/` - Modular CLI handlers.
-- `src/sync/` - Core session/message logic.
-- `src/store/` - SQLite persistence.
-- `src/sse/` - Server-Sent Events.
-- `src/config/` - Configuration loading and generation.
-- `src/notifications/` - Push notifications.
-- `src/visibility/` - Client visibility tracking.
+- `src/web/`：HTTP 服务与路由。
+- `src/socket/`：Socket.IO 初始化与处理。
+- `src/socket/handlers/cli/`：模块化 CLI handlers。
+- `src/sync/`：核心会话/消息逻辑。
+- `src/store/`：SQLite 持久化。
+- `src/sse/`：Server-Sent Events。
+- `src/config/`：配置加载与生成。
+- `src/notifications/`：推送通知。
+- `src/visibility/`：客户端可见性追踪。
 
-## Security model
+## 安全模型
 
-Access is controlled by:
-- `CLI_API_TOKEN` base secret for CLI and browser access (namespace is appended by clients).
+访问控制基于：
 
-Transport security depends on HTTPS in front of the hub.
+- `CLI_API_TOKEN` 作为 CLI 与浏览器访问的基础密钥（namespace 由客户端追加）。
 
-## Build for deployment
+传输安全依赖 hub 前置 HTTPS。
 
-From the repo root:
+## 部署构建
+
+在仓库根目录执行：
 
 ```bash
 bun run build:hub
 bun run build:web
 ```
 
-The hub build output is `hub/dist/index.js`, and the web assets are in `web/dist`.
+hub 构建产物为 `hub/dist/index.js`，web 资源位于 `web/dist`。
 
-## Networking notes
+## 网络说明
 
-- If the web app is hosted on a different origin, set `CORS_ORIGINS` (or `HAPI_PUBLIC_URL`) to include that static host origin.
+- 若 web app 与 hub 不同源部署，请设置 `CORS_ORIGINS`（或 `HAPI_PUBLIC_URL`）以包含静态站点来源。
 
-## Standalone web hosting
+## 独立托管 Web
 
-The web UI can be hosted separately from the hub (for example on GitHub Pages or Cloudflare Pages):
+Web UI 可与 hub 分离托管（例如 GitHub Pages、Cloudflare Pages）：
 
-1. Build and deploy `web/dist` from the repo root.
-2. Set `CORS_ORIGINS` (or `HAPI_PUBLIC_URL`) to the static host origin.
-3. Open the static site, click the Hub button on the login screen, and enter the hapi hub origin.
+1. 在仓库根目录构建并部署 `web/dist`。
+2. 设置 `CORS_ORIGINS`（或 `HAPI_PUBLIC_URL`）为静态站点来源。
+3. 打开静态站点，在登录页点击 Hub 按钮并输入 hapi hub 来源。
 
-Leaving the hub override empty preserves the default same-origin behavior when the hub serves the web assets directly.
+若将 hub override 留空，则保持默认同源行为（由 hub 直接提供 web 资源）。

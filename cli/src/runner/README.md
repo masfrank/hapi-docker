@@ -1,170 +1,170 @@
-# HAPI CLI Runner: Control Flow and Lifecycle
+# HAPI CLI Runner：控制流与生命周期
 
-The runner is a persistent background process that manages HAPI sessions, enables remote control from the mobile app, and handles auto-updates when the CLI version changes.
+Runner 是一个常驻后台进程，用于管理 HAPI 会话、支持移动端远程控制，并在 CLI 版本变化时处理自动更新。
 
-## 1. Runner Lifecycle
+## 1. Runner 生命周期
 
-### Starting the Runner
+### 启动 Runner
 
-Command: `hapi runner start`
+命令：`hapi runner start`
 
-Control Flow:
-1. `src/index.ts` receives `runner start` command
-2. Spawns detached process via `spawnHappyCLI(['runner', 'start-sync'], { detached: true })`
-3. New process calls `startRunner()` from `src/runner/run.ts`
-4. `startRunner()` performs startup:
-   - Sets up shutdown promise and handlers (SIGINT, SIGTERM, uncaughtException, unhandledRejection)
-   - Version check: `isRunnerRunningCurrentlyInstalledHappyVersion()` compares CLI binary mtime
-   - If version mismatch: calls `stopRunner()` to kill old runner before proceeding
-   - If same version running: exits with "Runner already running"
-   - Lock acquisition: `acquireRunnerLock()` creates exclusive lock file to prevent multiple runners
-   - Direct-connect setup: `authAndSetupMachineIfNeeded()` ensures `CLI_API_TOKEN` is set and `machineId` exists
-   - State persistence: writes PID, version, HTTP port, mtime to runner.state.json
-   - HTTP server: starts Fastify on random port for local CLI control (list, stop, spawn)
-   - WebSocket: establishes persistent connection to backend via `ApiMachineClient`
-   - RPC registration: exposes `spawn-happy-session`, `stop-session`, `stop-runner` handlers
-   - Heartbeat loop: every 60s (or `HAPI_RUNNER_HEARTBEAT_INTERVAL`) checks for version updates, prunes dead sessions, verifies PID ownership
-5. Awaits shutdown promise which resolves when:
-   - OS signal received (SIGINT/SIGTERM) - source: `os-signal`
-   - HTTP `/stop` endpoint called - source: `hapi-cli`
-   - RPC `stop-runner` invoked - source: `hapi-app`
-   - Uncaught exception occurs - source: `exception`
-6. On shutdown, `cleanupAndShutdown()` performs:
-   - Clears heartbeat interval
-   - Updates runner state to "shutting-down" on backend with shutdown source
-   - Disconnects WebSocket
-   - Stops HTTP server
-   - Deletes runner.state.json
-   - Releases lock file
-   - Exits process
+控制流程：
+1. `src/index.ts` 接收 `runner start` 命令。
+2. 通过 `spawnHappyCLI(['runner', 'start-sync'], { detached: true })` 拉起 detached 进程。
+3. 新进程调用 `src/runner/run.ts` 中的 `startRunner()`。
+4. `startRunner()` 执行启动流程：
+   - 初始化 shutdown promise 及处理器（SIGINT、SIGTERM、uncaughtException、unhandledRejection）。
+   - 版本检查：`isRunnerRunningCurrentlyInstalledHappyVersion()` 比较 CLI 二进制 mtime。
+   - 若版本不一致：先调用 `stopRunner()` 终止旧 runner。
+   - 若相同版本已在运行：输出 “Runner already running” 并退出。
+   - 获取锁：`acquireRunnerLock()` 创建独占 lock 文件，防止多个 runner 并发。
+   - 直连初始化：`authAndSetupMachineIfNeeded()` 确保 `CLI_API_TOKEN` 与 `machineId` 已准备。
+   - 状态持久化：写入 runner.state.json（PID、版本、HTTP 端口、mtime）。
+   - HTTP 服务：在随机端口启动 Fastify，用于本地 CLI 控制（list、stop、spawn）。
+   - WebSocket：通过 `ApiMachineClient` 与后端保持长连接。
+   - RPC 注册：暴露 `spawn-happy-session`、`stop-session`、`stop-runner` 处理器。
+   - 心跳循环：每 60 秒（或 `HAPI_RUNNER_HEARTBEAT_INTERVAL`）检查版本更新、清理死会话、校验 PID 归属。
+5. 等待 shutdown promise 被 resolve，触发来源包括：
+   - 收到 OS 信号（SIGINT/SIGTERM）- source: `os-signal`
+   - 调用 HTTP `/stop` 端点 - source: `hapi-cli`
+   - 调用 RPC `stop-runner` - source: `hapi-app`
+   - 发生未捕获异常 - source: `exception`
+6. 关闭时 `cleanupAndShutdown()` 执行：
+   - 清除心跳 interval
+   - 向后端更新 runner 为 `shutting-down`（带 shutdown source）
+   - 断开 WebSocket
+   - 停止 HTTP 服务
+   - 删除 runner.state.json
+   - 释放 lock 文件
+   - 退出进程
 
-### Version Detection & Auto-Update
+### 版本检测与自动更新
 
-The runner detects when CLI binary changes (e.g., after `npm upgrade hapi`):
-1. At startup, records `startedWithCliMtimeMs` (file modification time of CLI binary)
-2. Heartbeat compares current CLI mtime with recorded mtime via `getInstalledCliMtimeMs()`
-3. If mtime changed:
-   - Clears heartbeat interval
-   - Spawns new runner via `spawnHappyCLI(['runner', 'start'])`
-   - Waits 10 seconds to be killed by new runner
-4. New runner starts, sees old runner running with different mtime
-5. New runner calls `stopRunner()` which tries HTTP `/stop`, falls back to SIGKILL
-6. New runner takes over
+Runner 会检测 CLI 二进制变化（例如执行 `npm upgrade hapi` 后）：
+1. 启动时记录 `startedWithCliMtimeMs`（CLI 二进制文件修改时间）。
+2. 心跳中通过 `getInstalledCliMtimeMs()` 对比当前 mtime 与记录值。
+3. 若 mtime 变化：
+   - 清除心跳 interval
+   - 通过 `spawnHappyCLI(['runner', 'start'])` 拉起新 runner
+   - 等待 10 秒，由新 runner 杀掉旧进程
+4. 新 runner 启动后发现旧 runner mtime 不一致。
+5. 新 runner 调用 `stopRunner()`，先尝试 HTTP `/stop`，失败则回退 SIGKILL。
+6. 新 runner 接管运行。
 
-### Heartbeat System
+### 心跳系统
 
-Every 60 seconds (configurable via `HAPI_RUNNER_HEARTBEAT_INTERVAL`):
-1. **Guard**: Skips if previous heartbeat still running (prevents concurrent heartbeats)
-2. **Session Pruning**: Checks each tracked PID with `isProcessAlive(pid)`, removes dead sessions
-3. **Version Check**: Compares CLI binary mtime, triggers self-restart if changed
-4. **PID Ownership**: Verifies runner still owns state file, self-terminates if another runner took over
-5. **State Update**: Writes `lastHeartbeat` timestamp to runner.state.json
+每 60 秒执行一次（可由 `HAPI_RUNNER_HEARTBEAT_INTERVAL` 配置）：
+1. **Guard**：若上一轮心跳仍在运行则跳过（防并发心跳）。
+2. **Session Pruning**：对每个跟踪 PID 调用 `isProcessAlive(pid)`，移除已死亡会话。
+3. **Version Check**：比较 CLI 二进制 mtime，变化则触发自重启。
+4. **PID Ownership**：验证当前 runner 仍拥有 state 文件，若被接管则自终止。
+5. **State Update**：写入 runner.state.json 的 `lastHeartbeat` 时间戳。
 
-### Stopping the Runner
+### 停止 Runner
 
-Command: `hapi runner stop`
+命令：`hapi runner stop`
 
-Control Flow:
-1. `stopRunner()` in `controlClient.ts` reads runner.state.json
-2. Attempts graceful shutdown via HTTP POST to `/stop`
-3. Runner receives request, triggers shutdown with source `hapi-cli`
-4. `cleanupAndShutdown()` executes:
-   - Updates backend status to "shutting-down"
-   - Closes WebSocket connection
-   - Stops HTTP server
-   - Deletes runner.state.json
-   - Releases lock file
-5. If HTTP fails, falls back to `killProcess(pid, true)` (uses `taskkill /T /F` on Windows)
+控制流程：
+1. `controlClient.ts` 中的 `stopRunner()` 读取 runner.state.json。
+2. 先尝试通过 HTTP POST `/stop` 优雅关闭。
+3. Runner 收到请求后以 `hapi-cli` 作为 source 触发 shutdown。
+4. `cleanupAndShutdown()` 执行：
+   - 更新后端状态为 `shutting-down`
+   - 关闭 WebSocket
+   - 停止 HTTP 服务
+   - 删除 runner.state.json
+   - 释放 lock 文件
+5. 若 HTTP 方式失败，回退到 `killProcess(pid, true)`（Windows 使用 `taskkill /T /F`）。
 
-## 2. Multi-Agent Support
+## 2. 多 Agent 支持
 
-The runner supports spawning sessions with different AI agents:
+Runner 支持拉起不同 AI Agent 的会话：
 
-| Agent | Command | Token Environment |
-|-------|---------|-------------------|
-| `claude` (default) | `hapi claude` | `CLAUDE_CODE_OAUTH_TOKEN` |
-| `codex` | `hapi codex` | `CODEX_HOME` (temp directory with `auth.json`) |
+| Agent | 命令 | Token 环境 |
+|-------|------|------------|
+| `claude`（默认） | `hapi claude` | `CLAUDE_CODE_OAUTH_TOKEN` |
+| `codex` | `hapi codex` | `CODEX_HOME`（包含 `auth.json` 的临时目录） |
 | `gemini` | `hapi gemini` | - |
-| `opencode` | `hapi opencode` | OpenCode config (no token injection) |
+| `opencode` | `hapi opencode` | OpenCode 配置（不注入 token） |
 
-### Token Authentication
+### Token 认证
 
-When spawning a session with a token:
-- **Claude**: Sets `CLAUDE_CODE_OAUTH_TOKEN` environment variable
-- **Codex**: Creates temp directory at `os.tmpdir()/hapi-codex-*`, writes token to `auth.json`, sets `CODEX_HOME`
-- **OpenCode**: No token injection; relies on OpenCode's own configuration
+在带 token 拉起会话时：
+- **Claude**：设置环境变量 `CLAUDE_CODE_OAUTH_TOKEN`。
+- **Codex**：在 `os.tmpdir()/hapi-codex-*` 创建临时目录，将 token 写入 `auth.json`，并设置 `CODEX_HOME`。
+- **OpenCode**：不注入 token，依赖 OpenCode 自身配置。
 
-## 3. Session Management
+## 3. 会话管理
 
-### Runner-Spawned Sessions (Remote)
+### Runner 拉起的会话（Remote）
 
-Initiated by mobile app via backend RPC:
-1. Backend forwards RPC `spawn-happy-session` to runner via WebSocket
-2. `ApiMachineClient` invokes `spawnSession()` handler
-3. `spawnSession()`:
-   - Validates/creates directory (with approval flow)
-   - Configures agent-specific token environment
-   - Spawns detached HAPI process with `--hapi-starting-mode remote --started-by runner`
-   - Adds to `pidToTrackedSession` map
-   - Sets up 15-second awaiter for session webhook
-4. New HAPI process:
-   - Creates session with backend, receives `happySessionId`
-   - Calls `notifyRunnerSessionStarted()` to POST to runner's `/session-started`
-5. Runner updates tracking with `happySessionId`, resolves awaiter
-6. RPC returns session info to mobile app
+由移动端通过后端 RPC 发起：
+1. 后端通过 WebSocket 将 RPC `spawn-happy-session` 转发给 runner。
+2. `ApiMachineClient` 调用 `spawnSession()` handler。
+3. `spawnSession()`：
+   - 校验 / 创建目录（含审批流程）
+   - 配置 Agent 对应的 token 环境
+   - 以 `--hapi-starting-mode remote --started-by runner` 启动 detached HAPI 进程
+   - 加入 `pidToTrackedSession` map
+   - 设置 15 秒 session webhook 等待器
+4. 新 HAPI 进程：
+   - 在后端创建 session 并获得 `happySessionId`
+   - 调用 `notifyRunnerSessionStarted()`，向 runner 的 `/session-started` 发 POST
+5. Runner 更新跟踪信息并写入 `happySessionId`，resolve 等待器。
+6. RPC 返回 session 信息给移动端。
 
-### Terminal-Spawned Sessions
+### 终端直接拉起的会话
 
-User runs `hapi` directly:
-1. CLI auto-starts runner if configured
-2. HAPI process calls `notifyRunnerSessionStarted()`
-3. Runner receives webhook, creates `TrackedSession` with `startedBy: 'hapi directly - likely by user from terminal'`
-4. Session tracked for health monitoring
+用户直接运行 `hapi`：
+1. CLI 按配置自动启动 runner。
+2. HAPI 进程调用 `notifyRunnerSessionStarted()`。
+3. Runner 接收 webhook，创建 `TrackedSession`，`startedBy: 'hapi directly - likely by user from terminal'`。
+4. 会话纳入健康监控。
 
-### Directory Creation Approval
+### 目录创建审批
 
-When spawning a session, directory handling:
-1. Check if directory exists with `fs.access()`
-2. If missing and `approvedNewDirectoryCreation = false`: returns `requestToApproveDirectoryCreation` (HTTP 409)
-3. If missing and approved: creates directory with `fs.mkdir({ recursive: true })`
-4. Error handling for directory creation:
-   - `EACCES`: Permission denied
-   - `ENOTDIR`: File exists at path
-   - `ENOSPC`: Disk full
-   - `EROFS`: Read-only filesystem
+拉起会话时的目录处理：
+1. 用 `fs.access()` 检查目录是否存在。
+2. 若不存在且 `approvedNewDirectoryCreation = false`：返回 `requestToApproveDirectoryCreation`（HTTP 409）。
+3. 若不存在且已批准：使用 `fs.mkdir({ recursive: true })` 创建目录。
+4. 目录创建错误处理：
+   - `EACCES`：权限不足
+   - `ENOTDIR`：路径上已有同名文件
+   - `ENOSPC`：磁盘空间不足
+   - `EROFS`：只读文件系统
 
-### Session Termination
+### 会话终止
 
-Via RPC `stop-session` or HTTP `/stop-session`:
-1. `stopSession()` finds session by `happySessionId` or `PID-{pid}` format
-2. Sends termination request via `killProcessByChildProcess()` or `killProcess()` (Windows uses `taskkill /T`)
-3. `on('exit')` handler removes from tracking map
+通过 RPC `stop-session` 或 HTTP `/stop-session`：
+1. `stopSession()` 通过 `happySessionId` 或 `PID-{pid}` 格式查找会话。
+2. 通过 `killProcessByChildProcess()` 或 `killProcess()` 发起终止（Windows 使用 `taskkill /T`）。
+3. `on('exit')` 处理器将会话从跟踪 map 中移除。
 
-## 4. HTTP Control Server (Fastify)
+## 4. HTTP 控制服务（Fastify）
 
-Local HTTP server using Fastify with `fastify-type-provider-zod` for type-safe request/response validation.
+本地 HTTP 服务基于 Fastify，使用 `fastify-type-provider-zod` 实现类型安全请求 / 响应校验。
 
-**Host:** 127.0.0.1 (localhost only)
-**Port:** Dynamic (system-assigned)
+**Host：**127.0.0.1（仅本机）
+**Port：**动态分配（系统决定）
 
-### Endpoints
+### 端点
 
 #### POST `/session-started`
-Session webhook - reports itself after creation.
+Session webhook：会话创建后主动上报。
 
-**Request:**
+**Request：**
 ```json
 { "sessionId": "string", "metadata": { ... } }
 ```
-**Response (200):**
+**Response (200)：**
 ```json
 { "status": "ok" }
 ```
 
 #### POST `/list`
-Returns all tracked sessions.
+返回全部被跟踪会话。
 
-**Response (200):**
+**Response (200)：**
 ```json
 {
   "children": [
@@ -174,25 +174,25 @@ Returns all tracked sessions.
 ```
 
 #### POST `/stop-session`
-Terminates a specific session.
+终止指定会话。
 
-**Request:**
+**Request：**
 ```json
 { "sessionId": "string" }
 ```
-**Response (200):**
+**Response (200)：**
 ```json
 { "success": true }
 ```
 
 #### POST `/spawn-session`
-Creates a new session.
+创建新会话。
 
-**Request:**
+**Request：**
 ```json
 { "directory": "/path/to/dir", "sessionId": "optional-uuid" }
 ```
-**Response (200) - Success:**
+**Response (200) - Success：**
 ```json
 {
   "success": true,
@@ -200,7 +200,7 @@ Creates a new session.
   "approvedNewDirectoryCreation": true
 }
 ```
-**Response (409) - Requires Approval:**
+**Response (409) - Requires Approval：**
 ```json
 {
   "success": false,
@@ -209,20 +209,20 @@ Creates a new session.
   "directory": "/path/to/dir"
 }
 ```
-**Response (500) - Error:**
+**Response (500) - Error：**
 ```json
 { "success": false, "error": "Error message" }
 ```
 
 #### POST `/stop`
-Graceful runner shutdown.
+优雅关闭 runner。
 
-**Response (200):**
+**Response (200)：**
 ```json
 { "status": "stopping" }
 ```
 
-## 5. State Persistence
+## 5. 状态持久化
 
 ### runner.state.json
 ```json
@@ -237,74 +237,74 @@ Graceful runner shutdown.
 }
 ```
 
-### Lock File
-- Created with O_EXCL flag for atomic acquisition
-- Contains PID for debugging
-- Prevents multiple runner instances
-- Cleaned up on graceful shutdown
+### Lock 文件
+- 使用 O_EXCL 原子获取。
+- 文件内记录 PID 便于排查。
+- 用于防止多个 runner 同时运行。
+- 优雅关闭时清理。
 
-## 6. WebSocket Communication
+## 6. WebSocket 通信
 
-`ApiMachineClient` handles bidirectional communication:
+`ApiMachineClient` 负责双向通信：
 
-**Runner to Server:**
-- `machine-alive` - 20-second heartbeat
-- `machine-update-metadata` - static machine info changes
-- `machine-update-state` - runner status changes
+**Runner -> Server：**
+- `machine-alive`：20 秒心跳
+- `machine-update-metadata`：静态机器信息变化
+- `machine-update-state`：runner 状态变化
 
-**Server to Runner:**
-- `rpc-request` with methods:
-  - `spawn-happy-session` - spawn new session
-  - `stop-session` - stop session by ID
-  - `stop-runner` - request shutdown
+**Server -> Runner：**
+- `rpc-request`，方法包括：
+  - `spawn-happy-session`：拉起新会话
+  - `stop-session`：按 ID 停止会话
+  - `stop-runner`：请求关闭 runner
 
-All data is plain JSON over TLS; authentication is `CLI_API_TOKEN` (no end-to-end encryption).
+全部数据为 TLS 上的明文 JSON；认证方式是 `CLI_API_TOKEN`（非端到端加密）。
 
-## 7. Process Discovery and Cleanup
+## 7. 进程发现与清理
 
-### Doctor Command
+### Doctor 命令
 
-`hapi doctor` uses `ps aux | grep` to find all HAPI processes:
-- Production: matches `hapi` binary, `happy-coder`
-- Development: matches `src/index.ts` (run via `bun`)
-- Categorizes by command args: runner, runner-spawned, user-session, doctor
+`hapi doctor` 使用 `ps aux | grep` 查找 HAPI 相关进程：
+- 生产模式：匹配 `hapi` 二进制、`happy-coder`
+- 开发模式：匹配 `src/index.ts`（通过 `bun` 运行）
+- 依据命令参数分类：runner、runner-spawned、user-session、doctor
 
-### Clean Runaway Processes
+### 清理失控进程
 
-`hapi doctor clean`:
-1. `findRunawayHappyProcesses()` filters for likely orphans
-2. `killRunawayHappyProcesses()`:
-   - Sends SIGTERM
-   - Waits 1 second
-   - Sends SIGKILL if still alive
+`hapi doctor clean`：
+1. `findRunawayHappyProcesses()` 过滤疑似孤儿进程。
+2. `killRunawayHappyProcesses()`：
+   - 先发 SIGTERM
+   - 等待 1 秒
+   - 若仍存活再发 SIGKILL
 
-## 8. Integration Testing
+## 8. 集成测试
 
-### Test Environment
-- Requires `.env.integration-test`
-- Uses local hapi-hub (http://localhost:3006)
-- Separate `~/.hapi-dev-test` home directory
+### 测试环境
+- 需要 `.env.integration-test`
+- 使用本地 hapi-hub（`http://localhost:3006`）
+- 使用独立 `~/.hapi-dev-test` 目录
 
-### Key Test Scenarios
-- Session listing, spawning, stopping
-- External session webhook tracking
-- Graceful SIGTERM/SIGKILL shutdown
-- Multiple runner prevention
-- Version mismatch detection
-- Directory creation approval flow
-- Concurrent session stress tests
+### 关键测试场景
+- 会话列表、拉起、停止
+- 外部会话 webhook 跟踪
+- SIGTERM / SIGKILL 优雅关闭
+- 防止多 runner 并发
+- 版本不匹配检测
+- 目录创建审批流程
+- 并发会话压力测试
 
 ---
 
-# Machine Sync Architecture - Separated Metadata & Runner State
+# 机器同步架构：拆分 Metadata 与 Runner State
 
-> Direct-connect note: the "hub" is `hapi-hub`, payloads are plain JSON (no base64/encryption),
-> and authentication uses `CLI_API_TOKEN` (REST `Authorization: Bearer ...` + Socket.IO `handshake.auth.token`).
+> 直连说明：这里的 “hub” 指 `hapi-hub`，payload 为明文 JSON（无 base64/加密），
+> 认证使用 `CLI_API_TOKEN`（REST `Authorization: Bearer ...` + Socket.IO `handshake.auth.token`）。
 
-## Data Structure (Similar to Session's metadata + agentState)
+## 数据结构（类似 Session 的 metadata + agentState）
 
 ```typescript
-// Static machine information (rarely changes)
+// 静态机器信息（很少变化）
 interface MachineMetadata {
   host: string;              // hostname
   platform: string;          // darwin, linux, win32
@@ -314,7 +314,7 @@ interface MachineMetadata {
   happyLibDir: string;       // runtime path
 }
 
-// Dynamic runner state (frequently updated)
+// 动态 runner 状态（频繁更新）
 interface RunnerState {
   status: 'running' | 'shutting-down' | 'offline';
   pid?: number;
@@ -325,16 +325,16 @@ interface RunnerState {
 }
 ```
 
-## 1. CLI Startup Phase
+## 1. CLI 启动阶段
 
-Checks if machine ID exists in settings:
-- If not: creates ID locally only (so sessions can reference it)
-- Does NOT create machine on hub - that's runner's job
-- CLI doesn't manage machine details - all API & schema live in runner subpackage
+检查 settings 中是否存在 machine ID：
+- 若不存在：仅在本地创建 ID（供 session 关联）
+- 不会在 hub 创建 machine（这是 runner 的职责）
+- CLI 不负责 machine 细节；相关 API 与 schema 都在 runner 子模块
 
-## 2. Runner Startup - Initial Registration
+## 2. Runner 启动：初始注册
 
-### REST Request: `POST /cli/machines`
+### REST 请求：`POST /cli/machines`
 ```json
 {
   "id": "machine-uuid-123",
@@ -355,7 +355,7 @@ Checks if machine ID exists in settings:
 }
 ```
 
-### Server Response:
+### 服务器响应：
 ```json
 {
   "machine": {
@@ -372,9 +372,9 @@ Checks if machine ID exists in settings:
 }
 ```
 
-## 3. WebSocket Connection & Real-time Updates
+## 3. WebSocket 连接与实时更新
 
-### Connection Handshake:
+### 连接握手：
 ```javascript
 io(`${botUrl}/cli`, {
   auth: {
@@ -387,7 +387,7 @@ io(`${botUrl}/cli`, {
 })
 ```
 
-### Heartbeat (every 20s):
+### 心跳（每 20 秒）：
 ```json
 // Client -> Server
 socket.emit('machine-alive', {
@@ -396,9 +396,9 @@ socket.emit('machine-alive', {
 })
 ```
 
-## 4. Runner State Updates (via WebSocket)
+## 4. Runner State 更新（通过 WebSocket）
 
-### When runner status changes:
+### 当 runner 状态变化时：
 ```json
 // Client -> Server
 socket.emit('machine-update-state', {
@@ -430,7 +430,7 @@ socket.emit('machine-update-state', {
 }
 ```
 
-### Machine metadata update (rare):
+### 机器 metadata 更新（低频）：
 ```json
 // Client -> Server
 socket.emit('machine-update-metadata', {
@@ -446,17 +446,17 @@ socket.emit('machine-update-metadata', {
 }, callback)
 ```
 
-## 5. Web App RPC Calls (via hapi-hub)
+## 5. Web App RPC 调用（经 hapi-hub）
 
-The web app calls REST endpoints on `hapi-hub` (for example `POST /api/machines/:id/spawn`).
-`hapi-hub` then relays those requests to the runner via Socket.IO `rpc-request` on the `/cli` namespace.
+Web App 调用 `hapi-hub` 的 REST 端点（例如 `POST /api/machines/:id/spawn`）。
+`hapi-hub` 再通过 `/cli` namespace 的 Socket.IO `rpc-request` 转发给 runner。
 
-RPC method naming (machine-scoped) uses a `${machineId}:` prefix, for example:
+machine-scoped RPC 方法名使用 `${machineId}:` 前缀，例如：
 - `${machineId}:spawn-happy-session`
 
-## 6. Server Broadcasts to Clients
+## 6. 服务端向客户端广播
 
-### When runner state changes:
+### 当 runner state 变化时：
 ```json
 // Server -> Mobile/Web clients
 socket.emit('update', {
@@ -474,7 +474,7 @@ socket.emit('update', {
 })
 ```
 
-### When metadata changes:
+### 当 metadata 变化时：
 ```json
 socket.emit('update', {
   "id": "update-id-abc",
@@ -491,14 +491,14 @@ socket.emit('update', {
 })
 ```
 
-## 7. GET Machine Status (REST)
+## 7. 获取机器状态（REST）
 
-### Request: `GET /cli/machines/machine-uuid-123`
+### 请求：`GET /cli/machines/machine-uuid-123`
 ```http
 Authorization: Bearer <CLI_API_TOKEN>
 ```
 
-### Response:
+### 响应：
 ```json
 {
   "machine": {
@@ -515,36 +515,36 @@ Authorization: Bearer <CLI_API_TOKEN>
 }
 ```
 
-## Key Design Decisions
+## 关键设计决策
 
-1. **Separation of Concerns**:
-   - `metadata`: Static machine info (host, platform, versions)
-   - `runnerState`: Dynamic runtime state (status, pid, ports)
+1. **关注点分离**：
+   - `metadata`：静态机器信息（host、platform、version）
+   - `runnerState`：动态运行态（status、pid、port）
 
-2. **Independent Versioning**:
-   - `metadataVersion`: For machine metadata updates
-   - `runnerStateVersion`: For runner state updates
-   - Allows concurrent updates without conflicts
+2. **独立版本控制**：
+   - `metadataVersion`：用于 metadata 更新
+   - `runnerStateVersion`：用于 runnerState 更新
+   - 支持并发更新且减少冲突
 
-3. **Security**: No end-to-end encryption (TLS only); CLI auth is a shared secret `CLI_API_TOKEN`
+3. **安全策略**：不做端到端加密（仅 TLS）；CLI 认证为共享密钥 `CLI_API_TOKEN`。
 
-4. **Update Events**: Server broadcasts use same pattern as sessions:
-   - `t: 'update-machine'` with optional metadata and/or runnerState fields
-   - Clients only receive updates for fields that changed
+4. **更新事件模型**：服务端广播复用 session 同类模式：
+   - `t: 'update-machine'`，可带 metadata 和/或 runnerState
+   - 客户端仅接收变化字段
 
-5. **RPC Pattern**: Machine-scoped RPC methods prefixed with machineId (like sessions)
+5. **RPC 规范**：machine-scoped RPC 方法名使用 machineId 前缀（与 session 一致）。
 
 ---
 
 # Improvements
 
-- runner.state.json file is getting hard removed when runner exits or is stopped. We should keep it around and have 'state' field and 'stateReason' field that will explain why the runner is in that state
-- If the file is not found - we assume the runner was never started or was cleaned out by the user or doctor
-- If the file is found and corrupted - we should try to upgrade it to the latest version? or simply remove it if we have write access
+- runner.state.json 在 runner 退出或停止时会被硬删除。建议保留文件，并新增 `state` 与 `stateReason` 字段，说明当前状态与原因。
+- 若找不到该文件：可视为 runner 从未启动，或被用户 / doctor 清理。
+- 若文件存在但损坏：可考虑升级到最新版结构；若可写，也可直接删除。
 
-- posts helpers for runner do not return typed results
-- I don't like that runnerPost returns either response from runner or { error: ... }. We should have consistent envelope type
+- runner 的 post helpers 未返回类型化结果。
+- `runnerPost` 目前返回“runner 响应或 `{ error: ... }`”二选一，不够一致。建议统一 envelope 类型。
 
-- we loose track of children processes when runner exits / restarts - we should write them to the same state file? At least the pids should be there for doctor & cleanup
+- runner 退出 / 重启后会丢失对子进程的跟踪。建议将子进程（至少 PID）写入同一 state 文件，便于 doctor 与 cleanup。
 
-- the runner control server binds to `127.0.0.1` on a random port; if we ever expose it beyond localhost, require an explicit auth token/header
+- runner 控制服务当前绑定 `127.0.0.1` 随机端口；若未来对外暴露，必须要求显式认证 token/header。
