@@ -698,6 +698,72 @@ gh pr create --base main --head <fork>:contrib/<topic>
 
 ---
 
+## Scenario: Chinese-Primary Documentation Terminology Contract
+
+### 1. Scope / Trigger
+- Trigger: Documentation localization and terminology normalization across `README.md` and `docs/guide/*.md`.
+- Why this matters:
+  - Mixed naming (`hub`/`Hub`, `session`/`会话`) creates cognitive overhead and inconsistent UX copy.
+  - Drift between docs makes search, onboarding, and maintenance harder.
+
+### 2. Signatures
+- Documentation scope (current project convention):
+  - `README.md`
+  - `cli/README.md`
+  - `hub/README.md`
+  - `web/README.md`
+  - `docs/guide/*.md`
+- Excluded scope for localization in this task line:
+  - `.claude/**`
+  - `.github/**`
+  - `.trellis/**`
+
+### 3. Contracts
+- Language contract:
+  - User-facing product docs are Chinese-primary.
+  - Technical tokens/commands/paths remain literal (e.g., `hapi hub`, `/api/events`, `runner.state.json`).
+- Terminology contract:
+  - Product component names use consistent title form in prose: `Hub`, `Runner`, `Session`.
+  - Generic concept text prefers Chinese term `会话`; keep English token only when needed for protocol/UI labels.
+- Style contract:
+  - Do not alter executable snippets when only normalizing prose terminology.
+
+### 4. Validation & Error Matrix
+- Prose contains lowercase `hub` for product component mention -> normalize to `Hub`.
+- Mixed `session` and `会话` in adjacent prose without protocol reason -> normalize to `会话` (or explicit mixed form once, then consistent).
+- Terminology edits inside command/code blocks -> reject change and keep literal tokens.
+- Localization accidentally touches excluded directories -> revert those edits.
+
+### 5. Good/Base/Bad Cases
+- Good:
+  - `web/README.md` uses `Hub` consistently in prose, while preserving `hapi hub` in commands.
+- Base:
+  - Existing docs already Chinese-primary; only minor terminology cleanup needed.
+- Bad:
+  - Blind global replace modifies command literals or API paths.
+
+### 6. Tests Required (with assertion points)
+- Grep assertions (docs-only):
+  - Search for inconsistent prose tokens in target docs and review hits manually.
+  - Assert no unintended edits under `.claude/.github/.trellis`.
+- Review assertions:
+  - Commands/paths/API literals remain unchanged.
+  - Terminology consistency preserved in modified files.
+
+### 7. Wrong vs Correct
+#### Wrong
+```md
+登录页右上角有 hub 选择器；输入 hapi hub 的 origin。
+```
+
+#### Correct
+```md
+登录页右上角有 Hub 选择器；输入 hapi Hub 的 origin。
+# command literal stays unchanged in code block: `hapi hub`
+```
+
+---
+
 ### Before Submitting
 
 - [ ] `bun run typecheck` passes (no TypeScript errors)

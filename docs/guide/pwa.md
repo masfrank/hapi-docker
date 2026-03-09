@@ -1,189 +1,190 @@
-# Progressive Web App (PWA)
+# 渐进式 Web 应用（PWA）
 
-HAPI's web interface is a fully-featured PWA that can be installed on your phone for a native app-like experience.
+HAPI 的 Web 界面是一个功能完整的 PWA，可安装到手机上，获得接近原生应用的使用体验。
 
-## What is PWA?
+## 什么是 PWA？
 
-A Progressive Web App (PWA) is a web application that can be installed on your device and works like a native app:
+渐进式 Web 应用（PWA）是一种可安装到设备上的 Web 应用，使用方式类似原生 App：
 
-- **Home screen icon** - Launch HAPI like any other app
-- **Full screen mode** - No browser chrome, immersive experience
-- **Offline support** - Basic functionality works without internet
-- **Auto-updates** - Always get the latest version
+- **主屏图标**：像普通应用一样从桌面启动 HAPI
+- **全屏模式**：无浏览器地址栏，体验更沉浸
+- **离线支持**：无网络时仍可使用基础功能
+- **自动更新**：始终获取最新版本
 
-## Installing HAPI PWA
+## 安装 HAPI PWA
 
-### Android (Chrome/Edge)
+### Android（Chrome/Edge）
 
-1. Open HAPI in Chrome or Edge browser
-2. Look for the **"Install HAPI"** banner at the bottom
-3. Tap **"Install"**
-4. HAPI appears on your home screen
+1. 在 Chrome 或 Edge 中打开 HAPI
+2. 在底部找到 **“Install HAPI”** 横幅
+3. 点击 **“Install”**
+4. HAPI 会出现在主屏幕
 
 ::: tip
-If you don't see the install banner, tap the three-dot menu and select **"Add to Home screen"** or **"Install app"**.
+如果没有看到安装横幅，可点击右上角菜单，选择 **“Add to Home screen”** 或 **“Install app”**。
 :::
 
-### iOS (Safari)
+### iOS（Safari）
 
-1. Open HAPI in Safari browser
-2. Tap the **Share** button (square with arrow)
-3. Scroll down and tap **"Add to Home Screen"**
-4. Tap **"Add"** in the top right corner
+1. 在 Safari 中打开 HAPI
+2. 点击 **分享** 按钮（方框上箭头）
+3. 下滑并点击 **“Add to Home Screen”**
+4. 点击右上角 **“Add”**
 
 ::: warning
-iOS requires Safari for PWA installation. Chrome/Firefox on iOS don't support the "Add to Home Screen" feature.
+iOS 仅支持通过 Safari 安装 PWA。iOS 上的 Chrome/Firefox 不支持“Add to Home Screen”。
 :::
 
-### Desktop (Chrome/Edge)
+### 桌面端（Chrome/Edge）
 
-1. Open HAPI in your browser
-2. Click the install icon in the address bar (⊕)
-3. Or use the menu: **"Install HAPI..."**
-4. HAPI opens as a standalone window
+1. 在浏览器中打开 HAPI
+2. 点击地址栏中的安装图标（⊕）
+3. 或使用菜单：**“Install HAPI...”**
+4. HAPI 将以独立窗口打开
 
-## PWA Features
+## PWA 功能
 
-### Offline Mode
+### 离线模式
 
-When offline, HAPI can:
+离线时，HAPI 可以：
 
-- Display cached session lists
-- Show previously loaded messages
-- Queue actions for when you're back online
+- 展示缓存的会话列表
+- 显示已加载过的消息
+- 将操作排队，待网络恢复后执行
 
-An offline indicator appears when you lose connection.
+断网时会显示离线状态提示。
 
-### Auto-Update
+### 自动更新
 
-HAPI automatically checks for updates:
+HAPI 会自动检查更新：
 
-- Updates are checked hourly in the background
-- When a new version is available, you'll see a prompt
-- Click "Reload" to get the latest version
+- 每小时后台检查一次
+- 有新版本时会提示
+- 点击 “Reload” 即可更新到最新版本
 
-### Background Sync
+### 后台同步
 
-Actions taken offline are synced when reconnected:
+离线期间产生的操作会在重连后同步：
 
-- Pending messages are sent
-- Permission decisions are relayed
-- Session state is refreshed
+- 发送待处理消息
+- 同步权限决策
+- 刷新会话状态
 
-## Caching Strategy
+## 缓存策略
 
-HAPI uses intelligent caching:
+HAPI 采用智能缓存策略：
 
-| Content | Strategy | Duration |
+| 内容 | 策略 | 时长 |
 |---------|----------|----------|
-| App shell | Cache first | Until update |
-| Sessions API | Network first | 5 minutes |
-| Machines API | Network first | 10 minutes |
-| Static assets | Cache first | Forever |
+| App shell | Cache first | 直到更新 |
+| Sessions API | Network first | 5 分钟 |
+| Machines API | Network first | 10 分钟 |
+| 静态资源 | Cache first | 永久 |
 
-## Notifications
+## 通知
 
-HAPI supports push notifications to alert you when agents need attention.
+当 Agent 需要你处理时，HAPI 支持推送通知提醒。
 
-### Enable Notifications
+### 启用通知
 
-1. Open HAPI - a permission popup appears automatically
-2. Tap **Allow** to enable notifications
-3. If you missed the popup, go to system settings to grant permission
+1. 打开 HAPI 后会自动弹出权限请求
+2. 点击 **Allow** 启用通知
+3. 若错过弹窗，可到系统设置手动授予权限
 
-### Notification Types
+### 通知类型
 
-| Type | When Sent |
+| 类型 | 触发时机 |
 |------|-----------|
-| Permission Request | Agent needs your approval |
-| Ready | Agent finished and awaits input |
+| Permission Request | Agent 需要你审批 |
+| Ready | Agent 完成并等待输入 |
 
 ::: tip
-If push notifications don't work in your region (e.g., FCM unavailable), consider using a self-hosted notification relay.
+如果你所在地区推送不可用（如 FCM 不可达），可考虑自托管通知中继服务。
 :::
 
-## Managing Your PWA
+## 管理你的 PWA
 
-### Check Install Status
+### 查看安装状态
 
-HAPI shows different UI based on install status:
+HAPI 会根据安装状态显示不同 UI：
 
-- **Not installed** - Shows install prompt
-- **Installing** - Shows progress indicator
-- **Installed** - No prompt shown
+- **未安装**：显示安装提示
+- **安装中**：显示进度状态
+- **已安装**：不再显示安装提示
 
-### Uninstalling
+### 卸载
 
-**Android:**
-1. Long-press the HAPI icon
-2. Drag to "Uninstall" or tap the X
+**Android：**
+1. 长按 HAPI 图标
+2. 拖动到“卸载”或点击 X
 
-**iOS:**
-1. Long-press the HAPI icon
-2. Tap "Remove App" → "Delete App"
+**iOS：**
+1. 长按 HAPI 图标
+2. 点击 “Remove App” → “Delete App”
 
-**Desktop:**
-1. Open HAPI
-2. Click the three-dot menu
-3. Select "Uninstall HAPI"
+**桌面端：**
+1. 打开 HAPI
+2. 点击右上角三点菜单
+3. 选择 “Uninstall HAPI”
 
-### Clearing Cache
+### 清理缓存
 
-If you experience issues:
+如遇异常可尝试：
 
-1. Open HAPI in browser (not installed version)
-2. Open Developer Tools (F12)
-3. Go to Application → Storage
-4. Click "Clear site data"
+1. 在浏览器中打开 HAPI（不是安装版）
+2. 打开开发者工具（F12）
+3. 进入 Application → Storage
+4. 点击 “Clear site data”
 
-## Best Practices
+## 最佳实践
 
-### Battery Optimization
+### 电池优化
 
-On Android, disable battery optimization for HAPI to ensure:
-- Background sync works reliably
-- Notifications arrive promptly
+在 Android 上，建议为 HAPI 关闭电池优化，以保证：
 
-Settings → Apps → HAPI → Battery → Unrestricted
+- 后台同步稳定执行
+- 通知及时到达
 
-### Data Usage
+路径：Settings → Apps → HAPI → Battery → Unrestricted
 
-HAPI uses minimal data:
+### 流量使用
 
-- Initial load: ~500KB
-- Cached after first load
-- Only syncs changed data
+HAPI 流量占用较低：
 
-### Multiple Devices
+- 首次加载约 ~500KB
+- 首次后资源会缓存
+- 仅同步发生变更的数据
 
-You can install HAPI on multiple devices:
+### 多设备使用
 
-- All devices use the same server
-- Sessions sync across devices
-- Same access token works everywhere
+你可以在多个设备安装 HAPI：
 
-## Troubleshooting
+- 所有设备连接同一个服务端
+- 会话可跨设备同步
+- 同一 access token 可在各设备使用
 
-### Install Button Not Showing
+## 故障排查
 
-- Ensure you're using HTTPS (required for PWA)
-- Try refreshing the page
-- Check if already installed
+### 看不到安装按钮
 
-### App Not Updating
+- 确认使用 HTTPS（PWA 必需）
+- 尝试刷新页面
+- 检查是否已经安装
 
-1. Close the app completely
-2. Reopen and wait for update prompt
-3. If stuck, clear cache and reinstall
+### 应用不更新
 
-### Offline Mode Not Working
+1. 完全关闭应用
+2. 重新打开并等待更新提示
+3. 若仍异常，清缓存并重新安装
 
-- Ensure you've loaded the app at least once online
-- Check if ServiceWorker is registered (DevTools → Application)
-- Clear cache and reload
+### 离线模式不可用
 
-### iOS-Specific Issues
+- 确认至少曾在线打开过一次应用
+- 检查 ServiceWorker 是否注册（DevTools → Application）
+- 清缓存后重新加载
 
-- Must use Safari for installation
-- No background sync on iOS
-- Limited offline capabilities
+### iOS 特有限制
+
+- 必须使用 Safari 安装
+- iOS 不支持后台同步
+- 离线能力相对受限

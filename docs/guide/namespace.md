@@ -1,34 +1,34 @@
-# Namespace (Advanced)
+# 命名空间（Namespace，进阶）
 
-Namespaces are intended for small teams sharing a single public HAPI hub. Each team member uses a different namespace to isolate their sessions and machines without running separate hubs.
+命名空间适用于小型团队共享同一个公共 HAPI Hub 的场景。每位团队成员使用不同的命名空间来隔离各自的会话和机器，无需分别运行独立的 Hub。
 
-This is not a default setup path for most users.
+对大多数用户来说，这不是默认的配置方式。
 
-## How it works
+## 工作原理
 
-- The hub uses a single base `CLI_API_TOKEN`.
-- Clients append `:<namespace>` to the token for isolation.
+- Hub 使用一个基础 `CLI_API_TOKEN`。
+- 客户端在令牌后追加 `:<namespace>` 以实现隔离。
 
-## Setup
+## 配置
 
-1. On the hub, configure only the base token:
+1. 在 Hub 端，只需配置基础令牌：
 
 ```
 CLI_API_TOKEN="your-base-token"
 ```
 
-2. For each user, append a namespace in the client token:
+2. 为每位用户在客户端令牌中追加命名空间：
 
 ```
 CLI_API_TOKEN="your-base-token:alice"
 ```
 
-3. Web login should use the same `base:namespace` token.
+3. Web 登录和 Telegram 绑定也应使用相同的 `base:namespace` 格式令牌。
 
-## Limitations and gotchas
+## 限制与注意事项
 
-- Hub-side `CLI_API_TOKEN` must not include `:<namespace>`. If it does, the hub will strip the suffix and log a warning.
-- Namespaces are isolated: sessions, machines, and users are not visible across namespaces.
-- One machine ID cannot be reused across namespaces.
-  - To run multiple namespaces on one machine, use a separate `HAPI_HOME` per namespace, or clear the machine ID with `hapi auth logout` before switching.
-- Remote spawn is namespace-scoped. If you need remote spawning for multiple namespaces on the same machine, run a separate runner per namespace (use separate `HAPI_HOME`).
+- Hub 端的 `CLI_API_TOKEN` 不能包含 `:<namespace>`。如果包含，Hub 会自动去除后缀并输出警告日志。
+- 命名空间之间相互隔离：会话、机器和用户在不同命名空间之间不可见。
+- 同一个机器 ID 不能在多个命名空间中复用。
+  - 如需在同一台机器上运行多个命名空间，请为每个命名空间使用独立的 `HAPI_HOME`，或在切换前通过 `hapi auth logout` 清除机器 ID。
+- 远程会话创建（Remote spawn）是按命名空间隔离的。如需在同一台机器上为多个命名空间启用远程创建功能，请为每个命名空间运行独立的 Runner（使用不同的 `HAPI_HOME`）。

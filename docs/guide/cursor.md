@@ -1,62 +1,62 @@
 # Cursor Agent
 
-HAPI supports [Cursor Agent CLI](https://cursor.com/docs/cli/using) for running Cursor's AI coding agent with remote control via web and phone.
+HAPI 支持 [Cursor Agent CLI](https://cursor.com/docs/cli/using)，可在网页和手机端远程控制 Cursor 的 AI 编程代理。
 
-## Prerequisites
+## 前置条件
 
-Install Cursor Agent CLI:
+安装 Cursor Agent CLI：
 
-- **macOS/Linux:** `curl https://cursor.com/install -fsS | bash`
-- **Windows:** `irm 'https://cursor.com/install?win32=true' | iex`
+- **macOS/Linux：** `curl https://cursor.com/install -fsS | bash`
+- **Windows：** `irm 'https://cursor.com/install?win32=true' | iex`
 
-Verify installation:
+验证安装：
 
 ```bash
 agent --version
 ```
 
-## Usage
+## 用法
 
 ```bash
-hapi cursor                    # Start Cursor Agent session
-hapi cursor resume <chatId>    # Resume a specific chat
-hapi cursor --continue         # Resume the most recent chat
-hapi cursor --mode plan        # Start in Plan mode
-hapi cursor --mode ask         # Start in Ask mode
-hapi cursor --yolo             # Bypass approval prompts (--force)
-hapi cursor --model <model>    # Specify model
+hapi cursor                    # 启动 Cursor Agent 会话
+hapi cursor resume <chatId>    # 恢复指定会话
+hapi cursor --continue         # 恢复最近一次会话
+hapi cursor --mode plan        # 以 Plan 模式启动
+hapi cursor --mode ask         # 以 Ask 模式启动
+hapi cursor --yolo             # 跳过审批提示（--force）
+hapi cursor --model <model>    # 指定模型
 ```
 
-## Permission Modes
+## 权限模式
 
-| Mode | Description |
-|------|-------------|
-| `default` | Standard agent behavior |
-| `plan` | Plan mode - design approach before coding |
-| `ask` | Ask mode - explore code without edits |
-| `yolo` | Bypass approval prompts |
+| 模式 | 说明 |
+|------|------|
+| `default` | 标准代理行为 |
+| `plan` | Plan 模式：编码前先设计方案 |
+| `ask` | Ask 模式：只探索代码，不修改 |
+| `yolo` | 跳过审批提示 |
 
-Set mode via `--mode` flag or change from the web UI during a session.
+可通过 `--mode` 指定模式，也可以在会话中从 Web UI 切换。
 
-## Modes
+## 运行模式
 
-- **Local mode** - Run `hapi cursor` from terminal. Full interactive experience.
-- **Remote mode** - Spawn from web/phone when no terminal. Uses `agent -p` with `--output-format stream-json` and `--trust`. Each user message spawns one agent process; session continues via `--resume`.
+- **本地模式**：在终端运行 `hapi cursor`，交互体验完整。
+- **远程模式**：在 Web/手机端拉起（无终端场景）。底层使用 `agent -p` + `--output-format stream-json` + `--trust`。每条用户消息会拉起一个 Agent 进程，会话通过 `--resume` 延续。
 
-## Limitations
+## 限制说明
 
-- **Tool approval** - In remote mode, `--trust` is used; tools run without per-request approval. Use `--yolo` for full bypass.
-- **Session resume** - Pass `--resume <chatId>` or `--continue` to resume. Use `agent ls` to list previous chats and get chat IDs.
+- **工具审批**：远程模式默认使用 `--trust`，工具不会逐次审批。若需完全跳过审批可用 `--yolo`。
+- **会话恢复**：通过 `--resume <chatId>` 或 `--continue` 恢复；可用 `agent ls` 查看历史会话和 chat ID。
 
-## Integration
+## 集成效果
 
-Once running, your Cursor session appears in the HAPI web app. You can:
+启动后，Cursor 会话会出现在 HAPI Web 应用中。你可以：
 
-- Monitor session activity
-- Approve permissions from your phone
-- Send messages when in local mode (messages queue for when you switch)
+- 监控会话活动
+- 在手机端审批权限
+- 在本地模式下发送消息（切换时消息会排队）
 
-## Related
+## 相关链接
 
 - [Cursor CLI Documentation](https://cursor.com/docs/cli/using)
-- [How it Works](./how-it-works.md) - Architecture and data flow
+- [How it Works](./how-it-works.md) - 架构与数据流

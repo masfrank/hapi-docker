@@ -1,146 +1,146 @@
 # hapi-web
 
-React Mini App / PWA for monitoring and controlling hapi sessions.
+用于监控与控制 hapi 会话的 React Mini App / PWA。
 
-## What it does
+## 功能概览
 
-- Session list with status, pending approvals, todos, and summaries.
-- Chat view with streaming updates and message sending.
-- Permission approval and denial workflows.
-- Permission mode and model selection.
-- Machine list and remote session spawn.
-- File browser and git status/diff views.
-- PWA install prompt and offline banner.
+- 会话列表：显示状态、待审批数量、todo 与摘要。
+- 聊天视图：支持流式更新与发送消息。
+- 权限审批与拒绝工作流。
+- 权限模式与模型选择。
+- 机器列表与远程拉起会话。
+- 文件浏览器与 Git 状态 / Diff 视图。
+- PWA 安装提示与离线提示条。
 
-## Runtime behavior
+## 运行行为
 
-- When opened in a browser, you can log in with `CLI_API_TOKEN:<namespace>` (or `CLI_API_TOKEN` for the default namespace).
-- The login screen includes a top-right hub picker; if unset, the app uses the same origin it was loaded from.
-- Live updates come from the hub via SSE.
+- 在浏览器中打开后，可使用 `CLI_API_TOKEN:<namespace>` 登录（默认 namespace 可直接用 `CLI_API_TOKEN`）。
+- 登录页右上角有 Hub 选择器；若未设置，默认使用当前页面同源地址。
+- 实时更新通过 Hub 的 SSE 推送。
 
-## Routes
+## 路由
 
-See `src/router.tsx` for route definitions.
+路由定义见 `src/router.tsx`。
 
-- `/` - Redirect to /sessions.
-- `/sessions` - Session list.
-- `/sessions/$sessionId` - Chat interface.
-- `/sessions/new` - Create new session.
-- `/sessions/$sessionId/files` - File browser with git status.
-- `/sessions/$sessionId/file` - File viewer with diff support.
-- `/sessions/$sessionId/terminal` - Terminal interface.
-- `/settings` - Application settings.
+- `/` - 重定向到 `/sessions`。
+- `/sessions` - 会话列表。
+- `/sessions/$sessionId` - 聊天界面。
+- `/sessions/new` - 创建新会话。
+- `/sessions/$sessionId/files` - 带 Git 状态的文件浏览器。
+- `/sessions/$sessionId/file` - 支持 diff 的文件查看器。
+- `/sessions/$sessionId/terminal` - 终端界面。
+- `/settings` - 应用设置。
 
-## Features
+## 主要模块
 
-### Session list (`src/components/SessionList.tsx`)
+### 会话列表（`src/components/SessionList.tsx`）
 
-- Active/inactive status indicator.
-- Session title from name, summary, or path.
-- Todo progress display.
-- Pending permission request count.
-- Agent flavor label (claude/codex/gemini).
-- Model mode display.
+- 活跃 / 非活跃状态指示。
+- 从名称、摘要或路径推导会话标题。
+- Todo 进度显示。
+- 待处理权限请求计数。
+- Agent 类型标签（claude/codex/gemini）。
+- 模型模式显示。
 
-### Chat interface (`src/components/SessionChat.tsx`)
+### 聊天界面（`src/components/SessionChat.tsx`）
 
-- Message thread with infinite scroll.
-- Composer for sending messages.
-- Permission mode toggle (default/acceptEdits/bypassPermissions/plan).
-- Model selection (default/sonnet/opus).
-- Session abort and mode switch controls.
-- Context size display.
+- 支持无限滚动的消息线程。
+- 消息发送输入框（composer）。
+- 权限模式切换（default/acceptEdits/bypassPermissions/plan）。
+- 模型选择（default/sonnet/opus）。
+- 会话中止与模式切换控制。
+- 上下文大小显示。
 
-### File browser (`src/routes/sessions/files.tsx`)
+### 文件浏览器（`src/routes/sessions/files.tsx`）
 
-- Git status view (staged/unstaged files).
-- File search with ripgrep.
-- Navigate to file viewer.
+- Git 状态视图（staged/unstaged）。
+- 基于 ripgrep 的文件搜索。
+- 跳转到文件查看器。
 
-### File viewer (`src/routes/sessions/file.tsx`)
+### 文件查看器（`src/routes/sessions/file.tsx`）
 
-- File content display with syntax highlighting.
-- Staged/unstaged diff view.
+- 文件内容展示（含语法高亮）。
+- staged/unstaged diff 视图。
 
-### Terminal (`src/routes/sessions/terminal.tsx`)
+### 终端（`src/routes/sessions/terminal.tsx`）
 
-- Remote terminal via xterm.js
-- Real-time via Socket.IO
-- Resize handling
+- 基于 xterm.js 的远程终端。
+- 通过 Socket.IO 实时通信。
+- 支持终端尺寸调整。
 
-### New session (`src/components/NewSession/`)
+### 新建会话（`src/components/NewSession/`）
 
-Modular session creation:
-- Machine selector
-- Directory input with recent paths
-- Agent type selector
-- Model selector
-- Permission mode toggle (YOLO mode)
+模块化会话创建能力：
+- 机器选择器
+- 带最近路径的目录输入
+- Agent 类型选择
+- 模型选择器
+- 权限模式开关（YOLO mode）
 
-## Authentication
+## 认证
 
-See `src/hooks/useAuth.ts` and `src/hooks/useAuthSource.ts`.
+相关实现见 `src/hooks/useAuth.ts` 与 `src/hooks/useAuthSource.ts`。
 
-- Browser: Uses CLI_API_TOKEN from login prompt.
-- JWT tokens with auto-refresh.
+- 浏览器端：使用登录输入的 CLI_API_TOKEN。
+- JWT token 自动刷新。
 
-## Data fetching
+## 数据获取
 
-See `src/hooks/queries/` for query hooks and `src/hooks/mutations/` for mutations.
+查询 hooks 见 `src/hooks/queries/`，变更 hooks 见 `src/hooks/mutations/`。
 
-- Sessions, messages, machines via TanStack Query.
-- Git status and file operations.
-- Optimistic updates for message sending.
+- 通过 TanStack Query 获取 sessions、messages、machines。
+- 支持 Git 状态与文件操作。
+- 发送消息使用乐观更新。
 
-## Real-time updates
+## 实时更新
 
-See `src/hooks/useSSE.ts`.
+实现见 `src/hooks/useSSE.ts`。
 
-- SSE connection to `/api/events`.
-- Session/message/machine update events.
-- Automatic cache invalidation on events.
+- 通过 `/api/events` 建立 SSE 连接。
+- 接收会话 / message / machine 更新事件。
+- 事件到达后自动触发缓存失效刷新。
 
-## Stack
+## 技术栈
 
-React 19 + Vite + TanStack Router/Query + Tailwind + @assistant-ui/react + xterm.js + socket.io-client + workbox + shiki.
+React 19 + Vite + TanStack Router/Query + Tailwind + @assistant-ui/react + xterm.js + socket.io-client + workbox + shiki。
 
-## Source structure
+## 源码结构
 
-- `src/router.tsx` - Route definitions.
-- `src/components/` - UI components.
-- `src/hooks/` - Data fetching and state hooks.
-- `src/api/client.ts` - API client.
-- `src/types/api.ts` - Type definitions.
+- `src/router.tsx` - 路由定义。
+- `src/components/` - UI 组件。
+- `src/hooks/` - 数据获取与状态 hooks。
+- `src/api/client.ts` - API 客户端。
+- `src/types/api.ts` - 类型定义。
 
-## Development
+## 开发
 
-From the repo root:
+在仓库根目录执行：
 
 ```bash
 bun install
 bun run dev:web
 ```
 
-## Build
+## 构建
 
 ```bash
 bun run build:web
 ```
 
-The built assets land in `web/dist` and are served by hapi-hub. The single executable can embed these assets.
+构建产物位于 `web/dist`，由 hapi Hub 提供静态服务。单可执行文件模式下可将其内嵌。
 
-## Standalone hosting
+## 独立托管
 
-You can host `web/dist` on a static host (GitHub Pages, Cloudflare Pages) and point it at any hapi hub:
+可将 `web/dist` 部署到静态托管平台（如 GitHub Pages、Cloudflare Pages），并连接任意 hapi Hub：
 
-1. Build the web app. If your static host uses a subpath, set the Vite base:
+1. 构建 web app。若静态站点使用子路径，请设置 Vite base：
 
 ```bash
 bun run build:web -- --base /<repo>/
 ```
 
-2. Deploy `web/dist` to your static host.
-3. Set hub CORS to allow the static origin (`HAPI_PUBLIC_URL` or `CORS_ORIGINS`).
-4. Open the static site, click the top-right Hub button on the login screen, and enter the hapi hub origin.
+2. 将 `web/dist` 部署到静态站点。
+3. 在 Hub 端配置 CORS，允许该静态站点来源（`HAPI_PUBLIC_URL` 或 `CORS_ORIGINS`）。
+4. 打开静态站点，在登录页点击右上角 Hub 按钮，输入 hapi Hub 的 origin。
 
-Clear the hub override in the same dialog to return to same-origin behavior.
+在同一对话框中清空 Hub override，可恢复同源访问行为。
