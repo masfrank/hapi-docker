@@ -83,9 +83,8 @@ class GeminiRemoteLauncher extends RemoteLauncherBase {
                 logger.warn('[gemini-remote] resume failed, starting new session', error);
                 session.sendSessionEvent({ type: 'message', message: 'Gemini resume failed; starting a new session.' });
                 acpSessionId = await backend.newSession(sessionConfig);
-                // Replay history even when loadSession fails: Gemini CLI was started with --resume
-                // so it already has the conversation context, and UI should show the transcript too.
-                resumedFromSessionId = originalSessionId;
+                // resumedFromSessionId stays null: session/load failed so the model has no prior
+                // context, and replaying history to the UI would be misleading.
             }
         } else {
             acpSessionId = await backend.newSession(sessionConfig);

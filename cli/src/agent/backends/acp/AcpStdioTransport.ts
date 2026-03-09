@@ -136,6 +136,7 @@ export class AcpStdioTransport {
             }
 
             if (signal?.aborted) {
+                cleanup();
                 reject(new DOMException('ACP request aborted', 'AbortError'));
                 return;
             }
