@@ -80,11 +80,19 @@ export async function geminiLocalLauncher(
             onMessage: handleTranscriptMessage,
             onSessionId: (sessionId) => session.onSessionFound(sessionId)
         });
-        // Track how many messages existed before the scanner started.
-        // Remote mode will replay exactly these messages if a local→remote switch happens.
-        // If there were no pre-existing messages, mark history as already replayed.
-        session.historyReplayCutoff = existingCount;
-        session.historyReplayed = existingCount === 0;
+        if (!session.historyReplayed) {
+            if (session.startingMode === 'remote') {
+                // Session started in remote mode and switched to local; history was already
+                // handled (or there is none). No cutoff needed on the next remote switch.
+                session.historyReplayCutoff = 0;
+                session.historyReplayed = true;
+            } else {
+                // Session started in local mode with --resume. Record the number of
+                // pre-existing messages so remote mode can replay exactly those on switch.
+                session.historyReplayCutoff = existingCount;
+                session.historyReplayed = existingCount === 0;
+            }
+        }
     };
 
     const handleTranscriptPath = (transcriptPath: string) => {
