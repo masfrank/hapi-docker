@@ -276,7 +276,7 @@ export function SessionChat(props: {
             />
 
             {props.session.teamState && (
-                <TeamPanel teamState={props.session.teamState} />
+                <TeamPanel teamState={props.session.teamState} messages={props.messages} />
             )}
 
             {sessionInactive ? (

@@ -1,5 +1,85 @@
-import { useState } from 'react'
-import type { TeamState, TeamMember, TeamTask, TeamMessage } from '@hapi/protocol/types'
+import { useMemo, useState } from 'react'
+import type { TeamState, TeamMember, TeamTask, TeamMessage, DecryptedMessage } from '@hapi/protocol/types'
+import { isObject } from '@hapi/protocol'
+
+// --- Teammate activity extraction from conversation messages ---
+
+type TeammateActivity = {
+    memberName: string
+    toolCalls: Array<{ name: string; description: string | null; id: string }>
+    lastOutput: string | null
+    timestamp: number
+}
+
+/**
+ * Extract per-member activity from conversation messages by looking at
+ * Agent tool calls (which spawn subagents) and their tool_result blocks.
+ */
+function extractTeammateActivities(messages: DecryptedMessage[]): Map<string, TeammateActivity> {
+    const activities = new Map<string, TeammateActivity>()
+
+    for (const msg of messages) {
+        const content = msg.content
+        if (!isObject(content) || content.type !== 'output') continue
+        const data = isObject(content.data) ? content.data : null
+        if (!data) continue
+
+        if (data.type === 'assistant') {
+            const message = isObject(data.message) ? data.message : null
+            if (!message) continue
+            const blocks = Array.isArray(message.content) ? message.content : []
+            for (const block of blocks) {
+                if (!isObject(block)) continue
+                // Agent tool call - spawning a subagent
+                if (block.type === 'tool_use' && block.name === 'Agent') {
+                    const input = isObject(block.input) ? block.input as Record<string, unknown> : null
+                    if (!input) continue
+                    const name = typeof input.name === 'string' ? input.name : null
+                    if (!name) continue
+                    const desc = typeof input.description === 'string' ? input.description : null
+                    if (!activities.has(name)) {
+                        activities.set(name, {
+                            memberName: name,
+                            toolCalls: [],
+                            lastOutput: null,
+                            timestamp: msg.createdAt
+                        })
+                    }
+                    const activity = activities.get(name)!
+                    activity.timestamp = msg.createdAt
+                    if (desc) {
+                        activity.toolCalls = [{ name: 'Agent', description: desc, id: typeof block.id === 'string' ? block.id : '' }]
+                    }
+                }
+            }
+        }
+
+        // Tool results for Agent calls contain the subagent's output
+        if (data.type === 'user') {
+            const message = isObject(data.message) ? data.message : null
+            if (!message) continue
+            const blocks = Array.isArray(message.content) ? message.content : []
+            for (const block of blocks) {
+                if (!isObject(block) || block.type !== 'tool_result') continue
+                const rawContent = 'content' in block ? block.content : null
+                if (typeof rawContent !== 'string') continue
+                // Try to match this result to a known member
+                for (const [name, activity] of activities) {
+                    const toolId = activity.toolCalls[0]?.id
+                    if (toolId && typeof block.tool_use_id === 'string' && block.tool_use_id === toolId) {
+                        // Truncate long outputs
+                        activity.lastOutput = rawContent.length > 500 ? rawContent.slice(-500) : rawContent
+                        activity.timestamp = msg.createdAt
+                    }
+                }
+            }
+        }
+    }
+
+    return activities
+}
+
+// --- Styling helpers ---
 
 function memberStatusColor(status?: string): string {
     switch (status) {
@@ -41,40 +121,79 @@ function taskStatusClass(status?: string): string {
     }
 }
 
-function MemberCard({ member }: { member: TeamMember }) {
+// --- Components ---
+
+function MemberCard({ member, activity }: { member: TeamMember; activity?: TeammateActivity }) {
+    const [expanded, setExpanded] = useState(false)
+    const isActive = member.status === 'active'
+
     return (
-        <div className="flex items-center gap-2 rounded-md bg-[var(--app-subtle-bg)] px-2.5 py-1.5">
-            <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${memberStatusColor(member.status)}`} />
-            <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                    <span className="truncate text-xs font-medium text-[var(--app-fg)]">
-                        {member.name}
-                    </span>
-                    {member.agentType && (
-                        <span className="shrink-0 rounded bg-[var(--app-border)] px-1 py-px text-[10px] text-[var(--app-hint)]">
-                            {member.agentType}
+        <div className="overflow-hidden rounded-md bg-[var(--app-subtle-bg)]">
+            <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--app-subtle-bg-hover)]"
+            >
+                <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${memberStatusColor(member.status)} ${isActive ? 'animate-pulse' : ''}`} />
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        <span className="truncate text-xs font-medium text-[var(--app-fg)]">
+                            {member.name}
                         </span>
-                    )}
-                    {member.isolation === 'worktree' && (
-                        <span className="shrink-0 rounded bg-[var(--app-badge-warning-bg)] px-1 py-px text-[10px] text-[var(--app-badge-warning-text)]">
-                            worktree
-                        </span>
-                    )}
-                    {member.runInBackground && (
-                        <span className="shrink-0 rounded bg-[var(--app-badge-success-bg)] px-1 py-px text-[10px] text-[var(--app-badge-success-text)]">
-                            bg
-                        </span>
+                        {member.agentType && (
+                            <span className="shrink-0 rounded bg-[var(--app-border)] px-1 py-px text-[10px] text-[var(--app-hint)]">
+                                {member.agentType}
+                            </span>
+                        )}
+                        {member.isolation === 'worktree' && (
+                            <span className="shrink-0 rounded bg-[var(--app-badge-warning-bg)] px-1 py-px text-[10px] text-[var(--app-badge-warning-text)]">
+                                worktree
+                            </span>
+                        )}
+                        {member.runInBackground && (
+                            <span className="shrink-0 rounded bg-[var(--app-badge-success-bg)] px-1 py-px text-[10px] text-[var(--app-badge-success-text)]">
+                                bg
+                            </span>
+                        )}
+                    </div>
+                    {member.description && (
+                        <div className="mt-0.5 truncate text-[10px] leading-tight text-[var(--app-hint)]">
+                            {member.description}
+                        </div>
                     )}
                 </div>
-                {member.description && (
-                    <div className="mt-0.5 truncate text-[10px] leading-tight text-[var(--app-hint)]">
-                        {member.description}
-                    </div>
-                )}
-            </div>
-            <span className="shrink-0 text-[10px] text-[var(--app-hint)]">
-                {memberStatusLabel(member.status)}
-            </span>
+                <span className="shrink-0 text-[10px] text-[var(--app-hint)]">
+                    {memberStatusLabel(member.status)}
+                </span>
+                {/* Expand indicator */}
+                <svg
+                    className={`h-3 w-3 shrink-0 text-[var(--app-hint)] transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                    <path d="m6 9 6 6 6-6" />
+                </svg>
+            </button>
+
+            {expanded && (
+                <div className="border-t border-[var(--app-border)] px-2.5 py-2">
+                    {activity?.toolCalls?.[0]?.description && (
+                        <div className="mb-1.5 text-[11px] text-[var(--app-fg)]">
+                            <span className="font-medium">Task:</span> {activity.toolCalls[0].description}
+                        </div>
+                    )}
+                    {activity?.lastOutput ? (
+                        <div className="max-h-40 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-[var(--app-hint)]">
+                                {activity.lastOutput}
+                            </pre>
+                        </div>
+                    ) : (
+                        <div className="text-[10px] text-[var(--app-hint)]">
+                            {isActive ? 'Working...' : 'No output yet'}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     )
 }
@@ -139,8 +258,8 @@ function ProgressBar({ completed, total }: { completed: number; total: number })
     )
 }
 
-export function TeamPanel(props: { teamState: TeamState }) {
-    const { teamState } = props
+export function TeamPanel(props: { teamState: TeamState; messages?: DecryptedMessage[] }) {
+    const { teamState, messages: conversationMessages } = props
     const members = teamState.members ?? []
     const tasks = teamState.tasks ?? []
     const messages = teamState.messages ?? []
@@ -148,6 +267,11 @@ export function TeamPanel(props: { teamState: TeamState }) {
     const activeMembers = members.filter(m => m.status === 'active').length
     const completedTasks = tasks.filter(t => t.status === 'completed').length
     const hasActivity = activeMembers > 0 || tasks.some(t => t.status === 'in_progress')
+
+    const activities = useMemo(
+        () => conversationMessages ? extractTeammateActivities(conversationMessages) : new Map<string, TeammateActivity>(),
+        [conversationMessages]
+    )
 
     // Default expanded when there's active work
     const [expanded, setExpanded] = useState(hasActivity)
@@ -210,15 +334,19 @@ export function TeamPanel(props: { teamState: TeamState }) {
                         <p className="text-xs text-[var(--app-hint)]">{teamState.description}</p>
                     )}
 
-                    {/* Members */}
+                    {/* Members - now expandable with activity */}
                     {members.length > 0 && (
                         <div>
                             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--app-hint)]">
-                                Agents ({activeMembers} active)
+                                Agents ({activeMembers} active) — click to expand
                             </div>
                             <div className="flex flex-col gap-1">
                                 {members.map((member) => (
-                                    <MemberCard key={member.name} member={member} />
+                                    <MemberCard
+                                        key={member.name}
+                                        member={member}
+                                        activity={activities.get(member.name)}
+                                    />
                                 ))}
                             </div>
                         </div>
