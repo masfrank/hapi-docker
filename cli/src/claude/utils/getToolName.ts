@@ -28,8 +28,11 @@ const STANDARD_TOOLS: Record<string, string> = {
     'TodoWrite': 'Update Tasks',
     'TodoRead': 'Read Tasks',
     'Task': 'Launch Agent',
+    'TaskOutput': 'Agent Output',
+    'TaskStop': 'Stop Agent',
 
     // Team management
+    'Agent': 'Launch Agent',
     'TeamCreate': 'Create Team',
     'TeamDelete': 'Delete Team',
     'SendMessage': 'Send Message',

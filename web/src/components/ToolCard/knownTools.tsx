@@ -53,6 +53,22 @@ export const knownTools: Record<string, {
     subtitle?: (opts: ToolOpts) => string | null
     minimal?: boolean | ((opts: ToolOpts) => boolean)
 }> = {
+    Agent: {
+        icon: () => <RocketIcon className={DEFAULT_ICON_CLASS} />,
+        title: (opts) => {
+            const name = getInputStringAny(opts.input, ['name'])
+            const agentType = getInputStringAny(opts.input, ['subagent_type'])
+            if (name) return agentType ? `${name} (${agentType})` : `Agent: ${name}`
+            const description = getInputStringAny(opts.input, ['description'])
+            return description ?? 'Agent'
+        },
+        subtitle: (opts) => {
+            const prompt = getInputStringAny(opts.input, ['prompt'])
+            const description = getInputStringAny(opts.input, ['description'])
+            return prompt ? truncate(prompt, 120) : description ? truncate(description, 120) : null
+        },
+        minimal: (opts) => opts.childrenCount === 0
+    },
     Task: {
         icon: () => <RocketIcon className={DEFAULT_ICON_CLASS} />,
         title: (opts) => {

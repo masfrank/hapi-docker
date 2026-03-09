@@ -61,17 +61,32 @@ function processTeamDelete(): TeamStateDelta {
     return { _action: 'delete' }
 }
 
-function processTaskToolWithTeam(input: Record<string, unknown>): TeamStateDelta | null {
-    const teamName = typeof input.team_name === 'string' ? input.team_name : null
+/**
+ * Process Agent tool call - the primary tool for spawning teammates in Claude Code.
+ * Also handles the legacy Task tool with team_name parameter.
+ */
+function processAgentSpawn(input: Record<string, unknown>): TeamStateDelta | null {
     const name = typeof input.name === 'string' ? input.name : null
-    if (!teamName || !name) return null
+    const description = typeof input.description === 'string' ? input.description : null
+
+    // Agent tool: always creates a member. team_name is optional (uses current team context).
+    // Task tool: requires team_name to be treated as a team spawn.
+    if (!name) return null
 
     const agentType = typeof input.subagent_type === 'string' ? input.subagent_type : undefined
-    const description = typeof input.description === 'string' ? input.description : null
+    const runInBackground = input.run_in_background === true ? true : undefined
+    const isolation = input.isolation === 'worktree' ? 'worktree' as const : undefined
 
     const delta: TeamStateDelta = {
         _action: 'update',
-        members: [{ name, agentType, status: 'active' }],
+        members: [{
+            name,
+            agentType,
+            status: 'active',
+            runInBackground,
+            isolation,
+            description: description ?? undefined
+        }],
         updatedAt: Date.now()
     }
 
@@ -154,7 +169,7 @@ function processSendMessage(input: Record<string, unknown>): TeamStateDelta | nu
         updatedAt: Date.now()
     }
 
-    // If shutdown_request with approve=true, mark member as shutdown
+    // If shutdown_request, mark member as shutdown
     if (msgType === 'shutdown_request' && recipient) {
         delta.members = [{ name: recipient, status: 'shutdown' }]
     }
@@ -184,9 +199,17 @@ export function extractTeamStateFromMessageContent(messageContent: unknown): Tea
             case 'TeamDelete':
                 delta = processTeamDelete()
                 break
-            case 'Task':
-                delta = processTaskToolWithTeam(block.input)
+            case 'Agent':
+                delta = processAgentSpawn(block.input)
                 break
+            case 'Task': {
+                // Legacy: Task tool with team_name is treated as agent spawn
+                const teamName = typeof block.input.team_name === 'string' ? block.input.team_name : null
+                if (teamName) {
+                    delta = processAgentSpawn(block.input)
+                }
+                break
+            }
             case 'TaskCreate':
                 delta = processTaskCreate(block.input)
                 break

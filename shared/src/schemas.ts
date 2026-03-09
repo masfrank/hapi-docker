@@ -101,7 +101,11 @@ export const TodosSchema = z.array(TodoItemSchema)
 export const TeamMemberSchema = z.object({
     name: z.string(),
     agentType: z.string().optional(),
-    status: z.enum(['active', 'idle', 'shutdown']).optional()
+    status: z.enum(['active', 'idle', 'completed', 'error', 'shutdown']).optional(),
+    runInBackground: z.boolean().optional(),
+    isolation: z.enum(['worktree']).optional(),
+    description: z.string().optional(),
+    agentId: z.string().optional()
 })
 
 export type TeamMember = z.infer<typeof TeamMemberSchema>
