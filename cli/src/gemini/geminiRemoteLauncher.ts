@@ -12,6 +12,7 @@ import { createGeminiBackend } from './utils/geminiBackend';
 import { GeminiPermissionHandler } from './utils/permissionHandler';
 import { resolveGeminiRuntimeConfig } from './utils/config';
 import { findGeminiTranscriptPath, readGeminiTranscript } from './utils/sessionScanner';
+import { isAbortError } from '@/utils/errorUtils';
 
 class GeminiRemoteLauncher extends RemoteLauncherBase {
     private readonly session: GeminiSession;
@@ -136,12 +137,16 @@ class GeminiRemoteLauncher extends RemoteLauncherBase {
                     this.handleAgentMessage(message);
                 }, this.abortController.signal);
             } catch (error) {
-                logger.warn('[gemini-remote] prompt failed', error);
-                session.sendSessionEvent({
-                    type: 'message',
-                    message: 'Gemini prompt failed. Check logs for details.'
-                });
-                messageBuffer.addMessage('Gemini prompt failed', 'status');
+                if (isAbortError(error)) {
+                    logger.debug('[gemini-remote] prompt aborted by user');
+                } else {
+                    logger.warn('[gemini-remote] prompt failed', error);
+                    session.sendSessionEvent({
+                        type: 'message',
+                        message: 'Gemini prompt failed. Check logs for details.'
+                    });
+                    messageBuffer.addMessage('Gemini prompt failed', 'status');
+                }
             } finally {
                 session.onThinkingChange(false);
                 await this.permissionHandler?.cancelAll('Prompt finished');
