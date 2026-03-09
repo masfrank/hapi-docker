@@ -42,6 +42,24 @@ describe('AcpStdioTransport.sendRequest', () => {
         ).rejects.toMatchObject({ name: 'AbortError' });
     });
 
+    it('clears the timeout timer when signal is already aborted', async () => {
+        const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+
+        const fakeProc = makeFakeProcess();
+        vi.mocked(childProcess.spawn).mockReturnValue(fakeProc as unknown as ReturnType<typeof childProcess.spawn>);
+
+        const transport = new AcpStdioTransport({ command: 'gemini' });
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(
+            transport.sendRequest('session/prompt', {}, { timeoutMs: 1000, signal: controller.signal })
+        ).rejects.toMatchObject({ name: 'AbortError' });
+
+        expect(clearTimeoutSpy).toHaveBeenCalled();
+        clearTimeoutSpy.mockRestore();
+    });
+
     it('rejects when signal fires after request is sent', async () => {
         const fakeProc = makeFakeProcess();
         vi.mocked(childProcess.spawn).mockReturnValue(fakeProc as unknown as ReturnType<typeof childProcess.spawn>);
