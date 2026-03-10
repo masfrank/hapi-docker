@@ -84,7 +84,7 @@ function extractTeammateActivities(messages: DecryptedMessage[]): Map<string, Te
 
 function memberStatusColor(status?: string): string {
     switch (status) {
-        case 'active': return 'bg-emerald-500'
+        case 'active': return 'bg-[var(--app-link)]'
         case 'idle': return 'bg-amber-400'
         case 'completed': return 'bg-blue-500'
         case 'error': return 'bg-red-500'
@@ -95,7 +95,7 @@ function memberStatusColor(status?: string): string {
 
 function memberStatusLabel(status?: string): string {
     switch (status) {
-        case 'active': return 'Running'
+        case 'active': return 'In Progress'
         case 'idle': return 'Idle'
         case 'completed': return 'Done'
         case 'error': return 'Error'
