@@ -156,6 +156,29 @@ export async function claudeRemote(opts: {
         options: sdkOptions,
     });
 
+    let nextMessageWaitInFlight: Promise<void> | null = null;
+    const scheduleNextMessage = (): void => {
+        if (nextMessageWaitInFlight) {
+            return;
+        }
+        nextMessageWaitInFlight = (async () => {
+            const next = await opts.nextMessage();
+            if (!next) {
+                messages.end();
+                return;
+            }
+            mode = next.mode;
+            messages.push({ type: 'user', message: { role: 'user', content: next.message } });
+        })()
+            .catch((error) => {
+                logger.debug('[claudeRemote] Failed to get next message', error);
+                messages.end();
+            })
+            .finally(() => {
+                nextMessageWaitInFlight = null;
+            });
+    };
+
     updateThinking(true);
     try {
         logger.debug(`[claudeRemote] Starting to iterate over response`);
@@ -201,14 +224,8 @@ export async function claudeRemote(opts: {
                 // Send ready event
                 opts.onReady();
 
-                // Push next message
-                const next = await opts.nextMessage();
-                if (!next) {
-                    messages.end();
-                    return;
-                }
-                mode = next.mode;
-                messages.push({ type: 'user', message: { role: 'user', content: next.message } });
+                // Non-blocking: keep consuming background SDK messages while waiting for the next user input.
+                scheduleNextMessage();
             }
 
             // Handle tool result

@@ -200,10 +200,10 @@ describe('extractTeamStateFromMessageContent - Agent tool', () => {
         ])
 
         const delta = extractTeamStateFromMessageContent(msg)
-        // TeamCreate's _action: 'create' overrides the subsequent Agent merge
-        // because mergeDelta gives priority to 'create'
         expect(delta).toBeTruthy()
         expect(delta!.teamName).toBe('project-x')
+        expect(delta!.members).toHaveLength(1)
+        expect(delta!.members![0].name).toBe('dev-1')
     })
 
     test('should extract SendMessage with shutdown_request', () => {
@@ -224,6 +224,159 @@ describe('extractTeamStateFromMessageContent - Agent tool', () => {
         expect(delta!.members![0]).toMatchObject({
             name: 'researcher',
             status: 'shutdown'
+        })
+    })
+})
+
+describe('extractTeamStateFromMessageContent - teammate messages', () => {
+    const permissionRequestJson = JSON.stringify({
+        type: 'permission_request',
+        request_id: 'perm-123',
+        agent_id: 'todo-scanner',
+        tool_name: 'Bash',
+        tool_use_id: 'toolu_abc',
+        description: 'Run tests',
+        input: { command: 'npm test' }
+    })
+    const teammateXml = `<teammate-message teammate_id="todo-scanner" color="blue">\n${permissionRequestJson}\n</teammate-message>`
+
+    // Format 1: CLI sends user message with string content (body.type === 'user' && string content && !isSidechain)
+    // → wrapped as { role: 'user', content: { type: 'text', text: '<teammate-message...>' } }
+    test('should parse permission_request from user role with { type: text, text } content', () => {
+        const content = {
+            role: 'user',
+            content: { type: 'text', text: teammateXml },
+            meta: { sentFrom: 'cli' }
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0]).toMatchObject({
+            requestId: 'perm-123',
+            memberName: 'todo-scanner',
+            toolName: 'Bash',
+            status: 'pending'
+        })
+    })
+
+    // Format 2: CLI sends sidechain/array content (isSidechain=true or content is array)
+    // → wrapped as { role: 'agent', content: { type: 'output', data: { type: 'user', message: { content: '...' } } } }
+    test('should parse permission_request from agent-wrapped format with string content', () => {
+        const content = {
+            role: 'agent',
+            content: {
+                type: 'output',
+                data: {
+                    type: 'user',
+                    message: { content: teammateXml },
+                    isSidechain: true
+                }
+            }
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0].requestId).toBe('perm-123')
+    })
+
+    // Format 3: agent-wrapped with array content blocks
+    test('should parse permission_request from agent-wrapped format with array content', () => {
+        const content = {
+            role: 'agent',
+            content: {
+                type: 'output',
+                data: {
+                    type: 'user',
+                    message: {
+                        content: [{ type: 'text', text: teammateXml }]
+                    },
+                    isSidechain: true
+                }
+            }
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0].requestId).toBe('perm-123')
+    })
+
+    test('should parse permission_request from user role with tool_result content', () => {
+        const content = {
+            role: 'user',
+            content: [{
+                type: 'tool_result',
+                tool_use_id: 'toolu_abc',
+                content: teammateXml
+            }]
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0].requestId).toBe('perm-123')
+    })
+
+    test('should parse permission_request from agent-wrapped tool_result content', () => {
+        const content = {
+            role: 'agent',
+            content: {
+                type: 'output',
+                data: {
+                    type: 'user',
+                    message: {
+                        content: [{
+                            type: 'tool_result',
+                            tool_use_id: 'toolu_abc',
+                            content: teammateXml
+                        }]
+                    },
+                    isSidechain: true
+                }
+            }
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0].requestId).toBe('perm-123')
+    })
+
+    // Format 4: user role with array content blocks
+    test('should parse permission_request from user role with array content', () => {
+        const content = {
+            role: 'user',
+            content: [{ type: 'text', text: teammateXml }]
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0].requestId).toBe('perm-123')
+    })
+
+    // Format 5: user role with plain string content
+    test('should parse permission_request from user role with plain string content', () => {
+        const content = {
+            role: 'user',
+            content: teammateXml
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.pendingPermissions).toHaveLength(1)
+        expect(delta!.pendingPermissions![0].requestId).toBe('perm-123')
+    })
+
+    // Format 6: idle_notification
+    test('should parse idle_notification from teammate message', () => {
+        const idleJson = JSON.stringify({ type: 'idle_notification', agent_id: 'worker' })
+        const idleXml = `<teammate-message teammate_id="worker" color="green">\n${idleJson}\n</teammate-message>`
+        const content = {
+            role: 'user',
+            content: { type: 'text', text: idleXml }
+        }
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!.members).toHaveLength(1)
+        expect(delta!.members![0]).toMatchObject({
+            name: 'worker',
+            status: 'idle'
         })
     })
 })

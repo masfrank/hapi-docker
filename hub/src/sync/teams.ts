@@ -2,7 +2,24 @@ import { isObject } from '@hapi/protocol'
 import { unwrapRoleWrappedRecordEnvelope } from '@hapi/protocol/messages'
 import type { TeamState } from '@hapi/protocol/types'
 
-type TeamStateDelta = Partial<TeamState> & { _action?: 'create' | 'delete' | 'update' }
+type TeamStateDeltaTask = {
+    id: string
+    title?: string
+    description?: string
+    status?: 'pending' | 'in_progress' | 'completed' | 'blocked'
+    owner?: string
+}
+
+type TeamStateDelta = {
+    _action?: 'create' | 'delete' | 'update'
+    teamName?: string
+    description?: string
+    members?: TeamState['members']
+    tasks?: TeamStateDeltaTask[]
+    messages?: TeamState['messages']
+    pendingPermissions?: TeamState['pendingPermissions']
+    updatedAt?: number
+}
 
 function extractToolBlocks(content: Record<string, unknown>): Array<{ name: string; input: Record<string, unknown> }> {
     const blocks: Array<{ name: string; input: Record<string, unknown> }> = []
@@ -140,7 +157,7 @@ function processTaskUpdate(input: Record<string, unknown>): TeamStateDelta | nul
 
     return {
         _action: 'update',
-        tasks: [task as { id: string; title: string; status?: 'pending' | 'in_progress' | 'completed' | 'blocked'; owner?: string }],
+        tasks: [task as TeamStateDeltaTask],
         updatedAt: Date.now()
     }
 }
@@ -177,6 +194,41 @@ function processSendMessage(input: Record<string, unknown>): TeamStateDelta | nu
     return delta
 }
 
+function findTeammateMessageInContent(value: unknown): string | null {
+    if (typeof value === 'string') {
+        return value.includes('<teammate-message') ? value : null
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const found = findTeammateMessageInContent(item)
+            if (found) return found
+        }
+        return null
+    }
+
+    if (!isObject(value)) return null
+
+    if (value.type === 'text' && typeof value.text === 'string') {
+        return value.text.includes('<teammate-message') ? value.text : null
+    }
+
+    if (value.type === 'tool_result' && 'content' in value) {
+        const found = findTeammateMessageInContent(value.content)
+        if (found) return found
+    }
+
+    if (typeof value.content === 'string' && value.content.includes('<teammate-message')) {
+        return value.content
+    }
+
+    if (typeof value.text === 'string' && value.text.includes('<teammate-message')) {
+        return value.text
+    }
+
+    return null
+}
+
 function extractTeammateMessageText(record: { role: string; content: unknown }): string | null {
     // Direct user message: { role: 'user', content: '<teammate-message>...' | { type: 'text', text: '...' } | [{ type: 'text', text: '...' }] }
     if (record.role === 'user') {
@@ -184,16 +236,10 @@ function extractTeammateMessageText(record: { role: string; content: unknown }):
         if (isObject(record.content) && record.content.type === 'text' && typeof record.content.text === 'string') {
             return record.content.text
         }
-        // Handle array content blocks (Anthropic API format)
-        if (Array.isArray(record.content)) {
-            for (const block of record.content) {
-                if (isObject(block) && block.type === 'text' && typeof block.text === 'string') {
-                    if (block.text.includes('<teammate-message')) return block.text
-                }
-            }
+        const found = findTeammateMessageInContent(record.content)
+        if (found) {
+            return found
         }
-        // Debug: log unhandled content type
-        console.log('[teams] extractTeammateMessageText: user role, content type:', typeof record.content, Array.isArray(record.content) ? 'array' : '', JSON.stringify(record.content).slice(0, 200))
     }
 
     // Agent-wrapped (isSidechain/isMeta): { role: 'agent', content: { type: 'output', data: { type: 'user', message: { content: '...' } } } }
@@ -201,13 +247,9 @@ function extractTeammateMessageText(record: { role: string; content: unknown }):
         const data = isObject(record.content.data) ? record.content.data : null
         if (data && data.type === 'user' && isObject(data.message)) {
             if (typeof data.message.content === 'string') return data.message.content
-            // Handle array content blocks in agent-wrapped format
-            if (Array.isArray(data.message.content)) {
-                for (const block of data.message.content) {
-                    if (isObject(block) && block.type === 'text' && typeof block.text === 'string') {
-                        if (block.text.includes('<teammate-message')) return block.text
-                    }
-                }
+            const found = findTeammateMessageInContent(data.message.content)
+            if (found) {
+                return found
             }
         }
     }
@@ -439,7 +481,7 @@ export function applyTeamStateDelta(
             } else if (task.title) {
                 // Only insert new tasks that have a title (required by schema).
                 // Orphan TaskUpdate without title is ignored to prevent schema validation failure.
-                taskMap.set(task.id, task)
+                taskMap.set(task.id, { ...task, title: task.title })
             }
         }
         updated.tasks = Array.from(taskMap.values())
