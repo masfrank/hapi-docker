@@ -4,7 +4,7 @@ import { arch, platform } from 'node:os';
 import * as tar from 'tar';
 import packageJson from '../../package.json';
 import type { EmbeddedAsset } from '#embedded-assets';
-import { isBunCompiled, runtimePath } from '@/projectPath';
+import { isBunCompiled, runtimePath } from '../projectPath';
 
 const RUNTIME_MARKER = '.runtime-version';
 

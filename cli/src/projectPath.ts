@@ -1,6 +1,6 @@
 import { dirname, resolve, join } from 'path';
 import { fileURLToPath } from 'url';
-import { configuration } from '@/configuration';
+import { homedir } from 'node:os';
 import packageJson from '../package.json';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,7 +18,11 @@ export function runtimePath(): string {
         return projectPath();
     }
 
-    return join(configuration.happyHomeDir, 'runtime', packageJson.version);
+    const happyHomeDir = process.env.HAPI_HOME
+        ? process.env.HAPI_HOME.replace(/^~/, homedir())
+        : join(homedir(), '.hapi');
+
+    return join(happyHomeDir, 'runtime', packageJson.version);
 }
 
 export function isBunCompiled(): boolean {
