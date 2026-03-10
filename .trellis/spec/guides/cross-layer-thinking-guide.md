@@ -128,17 +128,18 @@ Typical failure pattern:
 
 ---
 
-## PR Automation Thinking Checklist
+## Terminal Session Contract Checklist (Web ↔ Hub ↔ CLI)
+When wiring terminal sessions across layers:
+- [ ] Is `terminalId` scoped per session (no reuse across sessions in the same UI lifecycle)?
+- [ ] Does the Web client reset cached `terminalId` on session change before reconnecting?
+- [ ] Does the Hub remove registry entries on **both** web socket disconnect and CLI socket disconnect?
+- [ ] Is duplicate `terminalId` creation handled as idempotent or surfaced with a clear error?
+- [ ] Are platform constraints (e.g. Windows terminal unsupported) surfaced consistently to the UI?
+- [ ] Is there an integration test covering "reconnect then reopen terminal" without ID collisions?
 
-When running automated post-coding PR workflow:
-- [ ] Did we run branch topology audit before creating PR?
-- [ ] Is PR branch based on `upstream/main` instead of product-only branch?
-- [ ] Before squash/rebase/PR replacement, did we create `backup/safety-*`?
-- [ ] Are we only auto-fixing blocking review/PIA items (not speculative suggestions)?
-- [ ] If replacing PR, was the new PR created and linked before closing the old one?
-
-Reference executable contract:
-- `backend/quality-guidelines.md` -> `Scenario: Automated Clean PR Delivery Loop (Branch Governor + PR Autopilot)`
+Typical failure pattern:
+- A stale `terminalId` remains registered in the Hub after a disconnect, so the next connect returns
+  "Terminal ID is already in use" even though the UI thinks it is a new session.
 
 ---
 
