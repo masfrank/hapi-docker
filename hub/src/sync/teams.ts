@@ -346,6 +346,53 @@ function extractTeammateMessage(record: { role: string; content: unknown }): Tea
     }
 }
 
+function extractUserToolResultBlocks(record: { role: string; content: unknown }): Array<Record<string, unknown>> {
+    let content: unknown = null
+
+    if (record.role === 'user') {
+        content = record.content
+    } else if (record.role === 'agent' && isObject(record.content) && record.content.type === 'output') {
+        const data = isObject(record.content.data) ? record.content.data : null
+        if (data && data.type === 'user' && isObject(data.message)) {
+            content = data.message.content
+        }
+    }
+
+    if (!Array.isArray(content)) return []
+
+    const blocks: Array<Record<string, unknown>> = []
+    for (const block of content) {
+        if (!isObject(block)) continue
+        if (block.type !== 'tool_result') continue
+        blocks.push(block as Record<string, unknown>)
+    }
+
+    return blocks
+}
+
+function extractTeamCreateResultDelta(record: { role: string; content: unknown }): TeamStateDelta | null {
+    const blocks = extractUserToolResultBlocks(record)
+    if (blocks.length === 0) return null
+
+    for (const block of blocks) {
+        const payload = isObject(block.content) ? block.content : null
+        if (!payload) continue
+
+        const teamName = typeof payload.team_name === 'string' ? payload.team_name : null
+        const description = typeof payload.description === 'string' ? payload.description : undefined
+        if (!teamName) continue
+
+        return {
+            _action: 'update',
+            teamName,
+            description,
+            updatedAt: Date.now()
+        }
+    }
+
+    return null
+}
+
 export function extractTeamStateFromMessageContent(messageContent: unknown): TeamStateDelta | null {
     const record = unwrapRoleWrappedRecordEnvelope(messageContent)
     if (!record) {
@@ -362,6 +409,11 @@ export function extractTeamStateFromMessageContent(messageContent: unknown): Tea
     // Check for teammate messages (permissions, output, idle, etc.)
     const teammateDelta = extractTeammateMessage(record)
     if (teammateDelta) return teammateDelta
+
+    // TeamCreate may return a normalized/renamed team_name in tool_result content.
+    // Keep TeamState in sync with the effective runtime team identity.
+    const teamCreateResultDelta = extractTeamCreateResultDelta(record)
+    if (teamCreateResultDelta) return teamCreateResultDelta
 
     // Debug: log teammate messages that didn't produce a delta
     if (record.role === 'user' && typeof record.content === 'string' && record.content.includes('teammate-message')) {
@@ -502,6 +554,14 @@ export function applyTeamStateDelta(
 
     if (delta.updatedAt) {
         updated.updatedAt = delta.updatedAt
+    }
+
+    if (typeof delta.teamName === 'string' && delta.teamName.length > 0) {
+        updated.teamName = delta.teamName
+    }
+
+    if (delta.description !== undefined) {
+        updated.description = delta.description
     }
 
     return updated

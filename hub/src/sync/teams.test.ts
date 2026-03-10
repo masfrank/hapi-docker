@@ -381,6 +381,37 @@ describe('extractTeamStateFromMessageContent - teammate messages', () => {
     })
 })
 
+describe('extractTeamStateFromMessageContent - TeamCreate tool result', () => {
+    test('should extract effective team_name from TeamCreate tool_result payload', () => {
+        const content = {
+            role: 'agent',
+            content: {
+                type: 'output',
+                data: {
+                    type: 'user',
+                    message: {
+                        content: [{
+                            type: 'tool_result',
+                            tool_use_id: 'toolu_team_create',
+                            content: {
+                                team_name: 'elegant-orbiting-corbato',
+                                team_file_path: '/tmp/config.json',
+                                lead_agent_id: 'team-lead@elegant-orbiting-corbato'
+                            }
+                        }]
+                    },
+                    isSidechain: true
+                }
+            }
+        }
+
+        const delta = extractTeamStateFromMessageContent(content)
+        expect(delta).toBeTruthy()
+        expect(delta!._action).toBe('update')
+        expect(delta!.teamName).toBe('elegant-orbiting-corbato')
+    })
+})
+
 describe('applyTeamStateDelta - member properties', () => {
     test('should preserve new member fields (description, isolation, runInBackground)', () => {
         const result = applyTeamStateDelta(baseTeamState, {
@@ -427,5 +458,20 @@ describe('applyTeamStateDelta - member properties', () => {
         expect(worker!.status).toBe('completed')
         expect(worker!.description).toBe('Search codebase')
         expect(worker!.isolation).toBe('worktree')
+    })
+})
+
+describe('applyTeamStateDelta - metadata updates', () => {
+    test('should update teamName/description on update delta', () => {
+        const result = applyTeamStateDelta(baseTeamState, {
+            _action: 'update',
+            teamName: 'effective-team-name',
+            description: 'Effective team description',
+            updatedAt: Date.now()
+        })
+
+        expect(result).toBeTruthy()
+        expect(result!.teamName).toBe('effective-team-name')
+        expect(result!.description).toBe('Effective team description')
     })
 })

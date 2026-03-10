@@ -94,6 +94,8 @@ export const knownTools: Record<string, {
     TeamCreate: {
         icon: () => <UsersIcon className={DEFAULT_ICON_CLASS} />,
         title: (opts) => {
+            const resultTeamName = getInputStringAny(opts.result, ['team_name'])
+            if (resultTeamName) return `Team: ${resultTeamName}`
             const teamName = getInputStringAny(opts.input, ['team_name'])
             return teamName ? `Team: ${teamName}` : 'Create Team'
         },
