@@ -143,6 +143,22 @@ Typical failure pattern:
 
 ---
 
+## Terminal Copy/Interrupt Input Contract Checklist (Web Keybinding ↔ Browser Clipboard ↔ PTY)
+
+When terminal input includes `Ctrl+C`, `Enter`, selection copy, and clipboard fallback:
+- [ ] Is there a deterministic decision order for `Ctrl+C`? (`hasSelection` copy > otherwise send `\u0003` interrupt)
+- [ ] Does copy behavior avoid forwarding input bytes to PTY in the same key path?
+- [ ] If copy branch is taken, does the handler explicitly `preventDefault`/`stopPropagation` to avoid accidental newline/command submit side effects?
+- [ ] Are browser-unsupported clipboard paths covered by a fallback (manual copy dialog or explicit user hint)?
+- [ ] Are keybinding rules documented for platform differences (`Ctrl+C` on Windows/Linux, `Cmd+C` on macOS)?
+- [ ] Is there an integration test for `select text -> copy -> shell receives no ^C/\n`?
+
+Typical failure pattern:
+- Frontend forwards `Ctrl+C` directly through terminal `onData` to backend PTY (`\u0003`) even while user intent is copy.
+- Result: copy fails and the active command is interrupted (or appears as unexpected enter/newline behavior).
+
+---
+
 ## Independent Mainline Migration Checklist
 
 When switching from upstream-collaboration mode to independent development mode:

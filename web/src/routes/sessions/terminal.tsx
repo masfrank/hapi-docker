@@ -3,6 +3,7 @@ import type { PointerEvent } from 'react'
 import { useParams } from '@tanstack/react-router'
 import type { Terminal } from '@xterm/xterm'
 import { useAppContext } from '@/lib/app-context'
+import { safeCopyToClipboard } from '@/lib/clipboard'
 import { useAppGoBack } from '@/hooks/useAppGoBack'
 import { useSession } from '@/hooks/queries/useSession'
 import { useTerminalSocket } from '@/hooks/useTerminalSocket'
@@ -249,16 +250,45 @@ export default function TerminalPage() {
         [write, resetModifiers]
     )
 
+    const handleTerminalCopyShortcut = useCallback((event: KeyboardEvent) => {
+        const isCopyKey = event.key.toLowerCase() === 'c'
+        const isCopyShortcut = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey
+        if (!isCopyKey || !isCopyShortcut) {
+            return true
+        }
+
+        const terminal = terminalRef.current
+        const hasSelection = terminal?.hasSelection() ?? false
+        if (!terminal || !hasSelection) {
+            return true
+        }
+
+        const selectionText = terminal.getSelection()
+        if (!selectionText) {
+            return true
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+
+        void safeCopyToClipboard(selectionText).catch(() => {
+            setManualPasteText(selectionText)
+            setPasteDialogOpen(true)
+        })
+        return false
+    }, [])
+
     const handleTerminalMount = useCallback(
         (terminal: Terminal) => {
             terminalRef.current = terminal
+            terminal.attachCustomKeyEventHandler(handleTerminalCopyShortcut)
             inputDisposableRef.current?.dispose()
             inputDisposableRef.current = terminal.onData((data) => {
                 const modifierState = modifierStateRef.current
                 dispatchSequence(data, modifierState)
             })
         },
-        [dispatchSequence]
+        [dispatchSequence, handleTerminalCopyShortcut]
     )
 
     const handleResize = useCallback(
