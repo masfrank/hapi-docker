@@ -105,10 +105,15 @@ export function registerSessionHandlers(socket: CliSocketWithData, deps: Session
         const teamDelta = extractTeamStateFromMessageContent(content)
         if (teamDelta) {
             console.log('[teams] delta extracted:', JSON.stringify(teamDelta).slice(0, 500))
-            const existingSession = store.sessions.getSession(sid)
+            const existingSession = store.sessions.getSessionByNamespace(sid, session.namespace)
             const existingTeamState = existingSession?.teamState as import('@hapi/protocol/types').TeamState | null | undefined
             const newTeamState = applyTeamStateDelta(existingTeamState ?? null, teamDelta)
-            const updated = store.sessions.setSessionTeamState(sid, newTeamState, msg.createdAt, session.namespace)
+            // Guard against accidental team-state wipe:
+            // if we only got an incremental update but no existing team state, skip persistence.
+            const shouldPersist = !(teamDelta._action === 'update' && !existingTeamState && newTeamState === null)
+            const updated = shouldPersist
+                ? store.sessions.setSessionTeamState(sid, newTeamState, msg.createdAt, session.namespace)
+                : false
             if (updated) {
                 onWebappEvent?.({ type: 'session-updated', sessionId: sid, data: { sid } })
             }
