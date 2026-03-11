@@ -101,3 +101,35 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Trellis 中文规范模板注入
+
+**Date**: 2026-03-11
+**Task**: Trellis 中文规范模板注入
+
+### Summary
+
+将 Trellis 关键索引文档语言约束统一为中文（简体），并将提交规范更新为 type(scope): 中文描述，明确仅模板约定与非追溯迁移策略。
+
+### Main Changes
+
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `26e16dd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
