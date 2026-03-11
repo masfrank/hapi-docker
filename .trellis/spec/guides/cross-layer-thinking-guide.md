@@ -98,17 +98,64 @@ Reference executable contract:
 
 ---
 
-## PR Automation Thinking Checklist
+## Session-Scoped Client Cache Checklist (Web State ↔ Session Identity)
 
-When running automated post-coding PR workflow:
-- [ ] Did we run branch topology audit before creating PR?
-- [ ] Is PR branch based on `upstream/main` instead of product-only branch?
-- [ ] Before squash/rebase/PR replacement, did we create `backup/safety-*`?
-- [ ] Are we only auto-fixing blocking review/PIA items (not speculative suggestions)?
-- [ ] If replacing PR, was the new PR created and linked before closing the old one?
+When UI state is cached across renders (e.g. `useRef`, query fallback, optimistic state):
+- [ ] Is cache keyed/scoped by stable identity (`session.id`, `workspaceId`, etc.)?
+- [ ] On identity change, do we reset previous identity cache before deriving fallback UI?
+- [ ] Does fallback logic prevent previous entity errors/status from leaking into the current entity?
+- [ ] Is loading/error tri-state evaluated after scope reset?
+- [ ] Is there an integration test that covers "create new entity -> initial load -> no old cache leak"?
 
-Reference executable contract:
-- `backend/quality-guidelines.md` -> `Scenario: Automated Clean PR Delivery Loop (Branch Governor + PR Autopilot)`
+Typical failure pattern:
+- Previous session status (`Git unavailable` or stale branch counters) remains in ref fallback while new session query is still loading.
+- User sees wrong status until route remount/re-entry forces state reset.
+
+---
+
+## Session-Switch Draft Persistence Checklist (Composer ↔ Session Identity)
+
+When chat composer text should survive switching between sessions:
+- [ ] Is draft state keyed by `session.id` rather than a single global composer value?
+- [ ] On session switch, do we hydrate input from the target session draft before rendering interactive input?
+- [ ] Does send success clear only the active session draft key?
+- [ ] Are drafts isolated between sessions (A draft never appears in B)?
+- [ ] Is there an integration test for: `type in A -> switch B -> switch A -> draft restored`?
+
+Typical failure pattern:
+- Composer relies on one shared `composer.text` state with no per-session scoping.
+- Navigating away and back remounts/syncs with empty state, causing unsent input loss.
+
+---
+
+## Terminal Session Contract Checklist (Web ↔ Hub ↔ CLI)
+When wiring terminal sessions across layers:
+- [ ] Is `terminalId` scoped per session (no reuse across sessions in the same UI lifecycle)?
+- [ ] Does the Web client reset cached `terminalId` on session change before reconnecting?
+- [ ] Does the Hub remove registry entries on **both** web socket disconnect and CLI socket disconnect?
+- [ ] Is duplicate `terminalId` creation handled as idempotent or surfaced with a clear error?
+- [ ] Are platform constraints (e.g. Windows terminal unsupported) surfaced consistently to the UI?
+- [ ] Is there an integration test covering "reconnect then reopen terminal" without ID collisions?
+
+Typical failure pattern:
+- A stale `terminalId` remains registered in the Hub after a disconnect, so the next connect returns
+  "Terminal ID is already in use" even though the UI thinks it is a new session.
+
+---
+
+## Terminal Copy/Interrupt Input Contract Checklist (Web Keybinding ↔ Browser Clipboard ↔ PTY)
+
+When terminal input includes `Ctrl+C`, `Enter`, selection copy, and clipboard fallback:
+- [ ] Is there a deterministic decision order for `Ctrl+C`? (`hasSelection` copy > otherwise send `\u0003` interrupt)
+- [ ] Does copy behavior avoid forwarding input bytes to PTY in the same key path?
+- [ ] If copy branch is taken, does the handler explicitly `preventDefault`/`stopPropagation` to avoid accidental newline/command submit side effects?
+- [ ] Are browser-unsupported clipboard paths covered by a fallback (manual copy dialog or explicit user hint)?
+- [ ] Are keybinding rules documented for platform differences (`Ctrl+C` on Windows/Linux, `Cmd+C` on macOS)?
+- [ ] Is there an integration test for `select text -> copy -> shell receives no ^C/\n`?
+
+Typical failure pattern:
+- Frontend forwards `Ctrl+C` directly through terminal `onData` to backend PTY (`\u0003`) even while user intent is copy.
+- Result: copy fails and the active command is interrupted (or appears as unexpected enter/newline behavior).
 
 ---
 

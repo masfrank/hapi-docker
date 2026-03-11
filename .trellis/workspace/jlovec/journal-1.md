@@ -69,3 +69,35 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 修复会话列表按钮误跳转（移动端）
+
+**Date**: 2026-03-10
+**Task**: 修复会话列表按钮误跳转（移动端）
+
+### Summary
+
+修复 SessionList 在移动端点击归档/删除按钮误触发行跳转的问题；补充触摸回归测试并同步前端组件规范与模板。
+
+### Main Changes
+
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9d988af` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

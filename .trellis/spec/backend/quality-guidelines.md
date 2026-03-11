@@ -837,7 +837,184 @@ zs --help
 #    only change repo deps when direct graph proves incompatibility.
 ```
 
+## Scenario: Docker CLI zcf Hybrid Config Contract (Build Defaults + Runtime Override)
+
+### 1. Scope / Trigger
+- Trigger: Docker CLI image switched to zcf-driven Claude config with runtime env override support.
+- Why code-spec depth is required:
+  - Infra integration changed (`Dockerfile.cli` build phase + `docker/entrypoint.sh` runtime phase).
+  - New executable env contract (`ZCF_*`, `CLAUDE_CONFIG_DIR`) controls mounted config behavior.
+  - Runtime override semantics must be testable to avoid accidental config loss or silent non-override.
+
+### 2. Signatures
+- Build-time signature (`Dockerfile.cli`):
+  - Global install: `pnpm install -g ... zcf`
+  - Default generation:
+    - `HOME=/tmp/zcf-home zcf init --skip-prompt --config-action new ... --default-output-style nekomata-engineer --workflows all --mcp-services Playwright,serena`
+  - Default export path: `/usr/local/share/claude-default`
+- Runtime signature (`docker/entrypoint.sh`):
+  - Bootstrap when mounted config dir is empty:
+    - copy `/usr/local/share/claude-default/.` -> `${CLAUDE_CONFIG_DIR}`
+  - Runtime override command:
+    - `HOME=/root zcf init --skip-prompt --config-action merge --code-type claude-code --install-cometix-line false --workflows skip --mcp-services skip --output-styles skip --api-type <skip|api_key> ...`
+  - Post-merge explicit override:
+    - write `${CLAUDE_CONFIG_DIR}/settings.json` for explicitly provided `ZCF_*` keys.
+
+### 3. Contracts
+- Path/env contract:
+  - `CLAUDE_CONFIG_DIR` (optional, default `/root/.claude`)
+  - image defaults path fixed at `/usr/local/share/claude-default`
+- Runtime override trigger contract (any non-empty value triggers override):
+  - `ZCF_API_KEY`
+  - `ZCF_API_URL`
+  - `ZCF_API_MODEL`
+  - `ZCF_API_HAIKU_MODEL`
+  - `ZCF_API_SONNET_MODEL`
+  - `ZCF_API_OPUS_MODEL`
+  - `ZCF_DEFAULT_OUTPUT_STYLE`
+  - `ZCF_ALL_LANG`
+  - `ZCF_AI_OUTPUT_LANG`
+- API key/security contract:
+  - `ZCF_API_KEY` runtime-only; MUST NOT be injected via Docker build args/layers.
+- Mount behavior contract:
+  - Empty mount dir -> bootstrap defaults.
+  - Non-empty mount dir + no `ZCF_*` trigger -> keep mounted files unchanged.
+  - Non-empty mount dir + `ZCF_*` trigger -> run zcf merge then force-set explicitly provided fields.
+
+### 4. Validation & Error Matrix
+- Missing `${CLAUDE_CONFIG_DIR}/settings.json` after merge -> skip explicit JSON patch (no hard crash beyond zcf phase).
+- Model/API URL provided without `ZCF_API_KEY` -> warn and keep `api-type=skip`.
+- Mounted directory non-empty, no trigger vars -> no zcf init invocation.
+- Empty mount + default dir exists -> must log bootstrap message and copy defaults once.
+- Build pipeline includes API key material -> policy violation (block release).
+
+### 5. Good/Base/Bad Cases
+- Good:
+  - Mounted non-empty `.claude`, set `ZCF_DEFAULT_OUTPUT_STYLE=engineer-professional`.
+  - Result: `settings.json.outputStyle == engineer-professional`.
+- Base:
+  - Mounted non-empty `.claude`, no `ZCF_*` env.
+  - Result: existing settings preserved.
+- Bad:
+  - Assume `--config-action merge` always overrides existing fields.
+  - Symptom: runtime env appears ignored (e.g., outputStyle remains old value).
+
+### 6. Tests Required (with assertion points)
+- Build checks:
+  - `docker build --check -f Dockerfile.cli .` passes.
+  - `docker build -t zhushen-cli:zcf -f Dockerfile.cli .` passes.
+- Compose checks:
+  - `docker compose config --quiet` passes with required `.env` presence.
+- Runtime behavior matrix:
+  - Case A (empty mount, no vars): assert bootstrap happened and default `outputStyle == nekomata-engineer`.
+  - Case B (non-empty mount, no vars): assert original `outputStyle` unchanged.
+  - Case C (non-empty mount, with `ZCF_DEFAULT_OUTPUT_STYLE`): assert overridden `outputStyle` equals env value.
+- Security checks:
+  - `docker history --format '{{.CreatedBy}}' zhushen-cli:zcf` contains no API key literal.
+
+### 7. Wrong vs Correct
+#### Wrong
+```sh
+# Expect merge mode to overwrite existing keys automatically
+docker run --rm -e ZCF_DEFAULT_OUTPUT_STYLE=engineer-professional -v "$PWD/.claude:/root/.claude" zhushen-cli:zcf
+# outputStyle may stay old if no explicit post-merge patch exists
+```
+
+#### Correct
+```sh
+# Keep merge for non-destructive behavior, then explicitly patch provided keys
+# in ${CLAUDE_CONFIG_DIR}/settings.json for deterministic runtime override.
+docker run --rm -e ZCF_DEFAULT_OUTPUT_STYLE=engineer-professional -v "$PWD/.claude:/root/.claude" zhushen-cli:zcf
+# assert settings.json.outputStyle == engineer-professional
+```
+
+---
+
+## Scenario: GitHub Release Without Binary Artifacts (Release Drafter + Install Notes)
+
+### 1. Scope / Trigger
+- Trigger: Release workflow changed from "attach binary artifacts" to "npm/docker distribution + generated notes".
+- Why code-spec depth is required:
+  - Changes release pipeline contract (`.github/workflows/release.yml`) and published output behavior.
+  - Introduces cross-step notes composition contract (draft release body + install notes template).
+  - Affects release governance (draft release lifecycle + Homebrew fallback behavior).
+
+### 2. Signatures
+- Release workflow signature:
+  - `.github/workflows/release.yml`
+  - Trigger: `push.tags: v*`
+  - Job: `release`
+- Release notes draft workflow signature:
+  - `.github/workflows/release-drafter.yml`
+  - Trigger: `push` to `main` + `pull_request_target` label/sync events
+  - Job: `update-draft`
+- Release Drafter config signature:
+  - `.github/release-drafter.yml`
+  - Mixed categorization: `labels` first + `autolabeler` (conventional commit fallback)
+- Install notes template signature:
+  - `.github/release-install-notes.md`
+  - Placeholder: `${TAG}` (must be substituted before release creation)
+
+### 3. Contracts
+- Distribution contract:
+  - GitHub Release MUST NOT publish downloadable build artifacts (`cli/release-artifacts/*`) as release assets.
+  - User upgrade path is documented via npm / Homebrew / Docker instructions in release notes.
+- Notes composition contract:
+  - Primary notes source: latest draft release body generated by Release Drafter.
+  - Fallback notes source: static `## What's Changed` header if no draft is available.
+  - Install section: append rendered `.github/release-install-notes.md` with `${TAG}` substituted from `GITHUB_REF`.
+- Draft lifecycle contract:
+  - After final release is created, consumed draft release SHOULD be deleted (best effort, `continue-on-error: true`).
+- Existing release-side integration contract:
+  - Homebrew update remains non-blocking (`continue-on-error: true`).
+
+### 4. Validation & Error Matrix
+- Draft release body fetch failed -> use fallback header, continue release.
+- Install notes template missing `${TAG}` substitution -> release notes contain unresolved literal; treat as quality failure and fix before tagging.
+- `gh release create` still includes asset glob (`cli/release-artifacts/*`) -> contract violation (must remove asset attachment).
+- Release Drafter labels missing on PR -> `autolabeler` conventional-commit rules provide fallback grouping.
+- Draft deletion API call fails -> log and continue (non-blocking cleanup).
+
+### 5. Good/Base/Bad Cases
+- Good:
+  - Tag `v0.1.2` triggers release; notes contain categorized changes + install/upgrade section with concrete npm/docker commands and resolved tag.
+- Base:
+  - No draft release exists; final release still generated with fallback "What's Changed" and install section.
+- Bad:
+  - Release publishes binary assets while docs claim npm/docker-only path; users get conflicting distribution signals.
+
+### 6. Tests Required (with assertion points)
+- Workflow static validation:
+  - Assert `.github/workflows/release.yml` has no `actions/upload-artifact` step.
+  - Assert `gh release create` command does not pass `cli/release-artifacts/*` assets.
+- Notes generation assertions:
+  - Simulate tag context and verify `/tmp/release-notes.md` includes both change section and install section.
+  - Assert `${TAG}` placeholder is fully substituted in rendered install commands.
+- Drafting contract assertions:
+  - On PR title `feat(...): ...` without label, verify Release Drafter `autolabeler` assigns `feature` (or mapped category label).
+- Monorepo pre-check assertions (finish-work prerequisite):
+  - In fresh workspace, run `bun install` before `bun run lint`, `bun run type-check`, `bun run test`.
+  - Assert quality commands are not executed against missing toolchain state.
+
+### 7. Wrong vs Correct
+#### Wrong
+```bash
+# still attaching binary artifacts in final release
+gh release create "$TAG" --generate-notes cli/release-artifacts/*
+```
+
+#### Correct
+```bash
+# notes = release-drafter draft (or fallback) + rendered install notes
+gh release create "$TAG" \
+  --title "Release $TAG" \
+  --notes-file /tmp/release-notes.md
+```
+
+---
+
 ### Before Submitting
+
 
 - [ ] `bun run typecheck` passes (no TypeScript errors)
 - [ ] `bun test` passes

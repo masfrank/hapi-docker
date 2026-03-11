@@ -200,6 +200,85 @@ describe('terminal socket handlers', () => {
         expect(terminalRegistry.get('terminal-1')).toBeNull()
     })
 
+
+    it('reuses terminal id for same socket/session without emitting duplicate-id error', () => {
+        const { terminalSocket, cliNamespace, terminalRegistry } = createHarness()
+        const cliSocket = new FakeSocket('cli-socket-1')
+        connectCliSocket(cliNamespace, cliSocket, 'session-1')
+
+        terminalSocket.trigger('terminal:create', {
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 80,
+            rows: 24
+        })
+
+        terminalSocket.trigger('terminal:create', {
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 100,
+            rows: 30
+        })
+
+        const openEvents = cliSocket.emitted.filter((entry) => entry.event === 'terminal:open')
+        expect(openEvents.length).toBe(2)
+        expect(openEvents[1]?.data).toEqual({
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 100,
+            rows: 30
+        })
+
+        const duplicateIdError = terminalSocket.emitted.find(
+            (entry) =>
+                entry.event === 'terminal:error'
+                && (entry.data as { message?: string })?.message === 'Terminal ID is already in use.'
+        )
+        expect(duplicateIdError).toBeUndefined()
+        expect(terminalRegistry.get('terminal-1')).not.toBeNull()
+    })
+
+    it('rebinds stale terminal id when previous cli socket is gone', () => {
+        const { terminalSocket, cliNamespace, terminalRegistry } = createHarness()
+        const firstCliSocket = new FakeSocket('cli-socket-1')
+        connectCliSocket(cliNamespace, firstCliSocket, 'session-1')
+
+        terminalSocket.trigger('terminal:create', {
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 80,
+            rows: 24
+        })
+
+        cliNamespace.sockets.delete(firstCliSocket.id)
+
+        const secondCliSocket = new FakeSocket('cli-socket-2')
+        connectCliSocket(cliNamespace, secondCliSocket, 'session-1')
+
+        terminalSocket.trigger('terminal:create', {
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 90,
+            rows: 28
+        })
+
+        const reopenedEvent = lastEmit(secondCliSocket, 'terminal:open')
+        expect(reopenedEvent?.data).toEqual({
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 90,
+            rows: 28
+        })
+
+        const duplicateIdError = terminalSocket.emitted.find(
+            (entry) =>
+                entry.event === 'terminal:error'
+                && (entry.data as { message?: string })?.message === 'Terminal ID is already in use.'
+        )
+        expect(duplicateIdError).toBeUndefined()
+        expect(terminalRegistry.get('terminal-1')?.cliSocketId).toBe('cli-socket-2')
+    })
+
     it('enforces per-socket terminal limits', () => {
         const { terminalSocket, cliNamespace } = createHarness({ maxTerminalsPerSocket: 1 })
         const cliSocket = new FakeSocket('cli-socket-1')

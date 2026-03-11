@@ -104,10 +104,23 @@ export function SessionChat(props: {
         status: gitStatus,
         error: gitError,
         isLoading: gitLoading,
+        refetch: refetchGitStatus,
     } = useGitStatusFiles(hasPath ? props.api : null, hasPath ? props.session.id : null)
     const lastGitStatusRef = useRef<GitStatusFiles | null>(null)
 
+    useEffect(() => {
+        lastGitStatusRef.current = null
+    }, [props.session.id])
+
+    useEffect(() => {
+        if (!hasPath || !props.session.active) {
+            return
+        }
+        void refetchGitStatus()
+    }, [hasPath, props.session.active, props.session.id, refetchGitStatus])
+
     const gitStatusForHeader = getGitStatusForHeader(gitStatus, lastGitStatusRef)
+
     // Track session id to clear caches when it changes
     const prevSessionIdRef = useRef<string | null>(null)
 
@@ -276,6 +289,7 @@ export function SessionChat(props: {
                         onModelModeChange={handleModelModeChange}
                         onSwitchToRemote={handleSwitchToRemote}
                         onTerminal={props.session.active ? handleViewTerminal : undefined}
+                        sessionId={props.session.id}
                         autocompleteSuggestions={props.autocompleteSuggestions}
                         onSlashEntry={props.onSlashEntry}
                         isFetchingSlashCommands={props.isFetchingSlashCommands}
