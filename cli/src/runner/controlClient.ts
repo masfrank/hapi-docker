@@ -4,7 +4,7 @@
  */
 
 import { logger } from '@/ui/logger';
-import { clearRunnerLock, clearRunnerState, readRunnerState } from '@/persistence';
+import { clearRunnerLock, clearRunnerState, readRunnerState, type RunnerLocallyPersistedState } from '@/persistence';
 import { Metadata } from '@/api/types';
 import packageJson from '../../package.json';
 import { existsSync, statSync } from 'node:fs';
@@ -127,7 +127,7 @@ export async function stopRunnerHttp(): Promise<void> {
  * our runner is always alive and running the latest version.
  * 
  * That seems like an overkill and yet another process to manage - lets not do this :D
- * 
+ */
 export type RunnerAvailabilityStatus = 'missing' | 'stale' | 'degraded' | 'running';
 
 export interface RunnerAvailability {
