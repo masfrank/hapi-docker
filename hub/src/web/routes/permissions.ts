@@ -78,23 +78,38 @@ export function createPermissionsRoutes(getSyncEngine: () => SyncEngine | null):
         }
 
         const requests = session.agentState?.requests ?? null
-        if (!requests || !requests[requestId]) {
-            return c.json({ error: 'Request not found' }, 404)
+        if (requests && requests[requestId]) {
+            // Standard path: permission is in agentState.requests (parent session's own tools)
+            const mode = parsed.data.mode
+            if (mode !== undefined) {
+                const flavor = session.metadata?.flavor ?? 'claude'
+                if (!isPermissionModeAllowedForFlavor(mode, flavor)) {
+                    return c.json({ error: 'Invalid permission mode for session flavor' }, 400)
+                }
+            }
+            const allowTools = parsed.data.allowTools
+            const decision = parsed.data.decision
+            const answers = parsed.data.answers
+            await engine.approvePermission(sessionId, requestId, mode, allowTools, decision, answers)
+            updateTeamPermissionStatus(engine, sessionId, session, requestId, 'approved')
+            return c.json({ ok: true })
         }
 
-        const mode = parsed.data.mode
-        if (mode !== undefined) {
-            const flavor = session.metadata?.flavor ?? 'claude'
-            if (!isPermissionModeAllowedForFlavor(mode, flavor)) {
-                return c.json({ error: 'Invalid permission mode for session flavor' }, 400)
-            }
+        // Teammate path: permission is from an in-process sub-agent.
+        // These go through Claude Code's internal teammate messaging, not agentState.requests.
+        // Send approval as a user message so the parent agent can relay it.
+        const teamState = session.teamState as TeamState | null | undefined
+        const teamPerm = teamState?.pendingPermissions?.find(
+            p => p.requestId === requestId || p.toolUseId === requestId
+        )
+        if (teamPerm) {
+            const approvalText = `Approve ${teamPerm.memberName}'s permission request to use ${teamPerm.toolName}. Request ID: ${teamPerm.requestId}`
+            await engine.sendMessage(sessionId, { text: approvalText, sentFrom: 'webapp' })
+            updateTeamPermissionStatus(engine, sessionId, session, requestId, 'approved')
+            return c.json({ ok: true, via: 'teammate-message' })
         }
-        const allowTools = parsed.data.allowTools
-        const decision = parsed.data.decision
-        const answers = parsed.data.answers
-        await engine.approvePermission(sessionId, requestId, mode, allowTools, decision, answers)
-        updateTeamPermissionStatus(engine, sessionId, session, requestId, 'approved')
-        return c.json({ ok: true })
+
+        return c.json({ error: 'Request not found' }, 404)
     })
 
     app.post('/sessions/:id/permissions/:requestId/deny', async (c) => {
@@ -111,20 +126,32 @@ export function createPermissionsRoutes(getSyncEngine: () => SyncEngine | null):
         }
         const { sessionId, session } = sessionResult
 
-        const requests = session.agentState?.requests ?? null
-        if (!requests || !requests[requestId]) {
-            return c.json({ error: 'Request not found' }, 404)
-        }
-
         const json = await c.req.json().catch(() => null)
         const parsed = denyBodySchema.safeParse(json ?? {})
         if (!parsed.success) {
             return c.json({ error: 'Invalid body' }, 400)
         }
 
-        await engine.denyPermission(sessionId, requestId, parsed.data.decision)
-        updateTeamPermissionStatus(engine, sessionId, session, requestId, 'denied')
-        return c.json({ ok: true })
+        const requests = session.agentState?.requests ?? null
+        if (requests && requests[requestId]) {
+            await engine.denyPermission(sessionId, requestId, parsed.data.decision)
+            updateTeamPermissionStatus(engine, sessionId, session, requestId, 'denied')
+            return c.json({ ok: true })
+        }
+
+        // Teammate path: send denial as a user message
+        const teamState = session.teamState as TeamState | null | undefined
+        const teamPerm = teamState?.pendingPermissions?.find(
+            p => p.requestId === requestId || p.toolUseId === requestId
+        )
+        if (teamPerm) {
+            const denyText = `Deny ${teamPerm.memberName}'s permission request to use ${teamPerm.toolName}. Request ID: ${teamPerm.requestId}`
+            await engine.sendMessage(sessionId, { text: denyText, sentFrom: 'webapp' })
+            updateTeamPermissionStatus(engine, sessionId, session, requestId, 'denied')
+            return c.json({ ok: true, via: 'teammate-message' })
+        }
+
+        return c.json({ error: 'Request not found' }, 404)
     })
 
     return app
