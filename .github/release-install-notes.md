@@ -21,10 +21,10 @@ brew install jlovec1024/tap/zs
 
 ```bash
 # CLI
-docker pull ghcr.io/jlovec1024/zhushen-cli:${TAG}
+docker pull ghcr.io/jlovec1024/zs-runner:${TAG}
 
 # Hub
-docker pull ghcr.io/jlovec1024/zhushen-hub:${TAG}
+docker pull ghcr.io/jlovec1024/zs-hub:${TAG}
 ```
 
 See the full [Installation Guide](https://github.com/jlovec1024/hapi/blob/main/docs/guide/installation.md) for more options.

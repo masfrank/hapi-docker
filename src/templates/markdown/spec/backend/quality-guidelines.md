@@ -619,7 +619,7 @@ gh pr create --base main --head <fork>:contrib/<topic>
 
 ### 2. Signatures
 - Docker install step signature:
-  - `Dockerfile.hub`, `Dockerfile.cli`
+  - `Dockerfile.hub`, `Dockerfile.runner`
   - `RUN bun install --frozen-lockfile`
 - Workspace manifest copy signature:
   - root `package.json`, root `bun.lock`, and all workspace `*/package.json` included in lock resolution.
@@ -657,7 +657,7 @@ gh pr create --base main --head <fork>:contrib/<topic>
   - `git diff --exit-code bun.lock` returns clean after install.
 - Docker assertions:
   - `docker build -f Dockerfile.hub .` reaches install step without lockfile mutation.
-  - `docker build -f Dockerfile.cli .` reaches install step without lockfile mutation.
+  - `docker build -f Dockerfile.runner .` reaches install step without lockfile mutation.
 - CI assertions:
   - `.github/workflows/docker-images.yml` path filter includes lock/manifests and Dockerfiles.
   - Build matrix fail log triage identifies first failing platform and command.
