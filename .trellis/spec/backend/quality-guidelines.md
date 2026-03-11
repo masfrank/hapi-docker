@@ -144,6 +144,22 @@ For GitHub Actions that invoke `openai/codex-action@v1`:
 
 ---
 
+## Container Runtime Contracts
+
+For Docker / runner images that execute Bun-based CLIs:
+
+- Treat production image dependency closure as a runtime contract, not a build optimization detail.
+- Do not rely on filtered production installs unless you have verified that all transitive runtime dependencies are materialized in the final image.
+- If a runtime path imports packages like `tar`, prefer validating the final image with the actual startup command rather than assuming lockfile completeness is enough.
+- For paired env vars such as `ZCF_API_KEY` / `ZCF_API_URL`, validate semantic shape (`key` should not look like URL, `url` should parse as URL) before mutating persisted config.
+- If the entrypoint can continue after config warnings, make sure the warning is precise enough to reveal whether the failure is recoverable or whether startup should stop.
+- Distinguish **container entrypoint commands** from **daemonized bootstrap commands**. A command that may legitimately exit with code `0` after discovering an existing background process is not a valid Docker PID 1 contract.
+- If a CLI subcommand can print messages like `already running` and then `process.exit(0)`, do not wire it directly as a long-running Compose service command.
+- For Compose services with `restart: unless-stopped`, verify that the main process is designed to stay in the foreground; otherwise a successful exit will become a restart loop.
+- Add an executable validation that checks not only `docker compose up`, but also that the service remains `Up` and reaches `healthy` after initial bootstrap.
+
+---
+
 ### ✅ Always Use
 
 1. **Named exports** for all functions, classes, types

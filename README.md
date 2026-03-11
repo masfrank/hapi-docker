@@ -67,9 +67,15 @@ cp -r ~/.hapi/* ~/.zhushen/
 
 ```bash
 cp .env.example .env
-# 先在 .env 中设置 CLI_API_TOKEN 和 CLAUDE_CONFIG_DIR
+mkdir -p ./.claude
 
-docker compose up -d zs-hub zs-runner
+# 编辑 .env，至少设置：
+# - CLI_API_TOKEN
+# - CLAUDE_CONFIG_DIR（必须是宿主机绝对路径）
+
+bun run docker:check
+docker compose up -d --build zs-hub zs-runner
+docker compose logs -f zs-hub zs-runner
 ```
 
 ### 配置
@@ -79,8 +85,8 @@ docker compose up -d zs-hub zs-runner
 - `CLAUDE_CONFIG_DIR`: 挂载到容器的 Claude Code 认证/会话配置的宿主机绝对路径（必填）
 - `ZS_GO_VERSION`: 运行时 Go 版本（默认 `1.24.3`，由 goenv 管理）
 - `ZS_NODE_VERSION`: 运行时 Node.js 主版本号（默认 `22`，由 nvm 管理）
-- `ZCF_API_KEY`: 运行时注入 Claude API Key（仅在设置时触发覆盖）
-- `ZCF_API_URL`: 运行时注入 Claude API URL（仅在设置时触发覆盖）
+- `ZCF_API_KEY`: 运行时注入 Claude API Key（仅在设置时触发覆盖，不能填 URL）
+- `ZCF_API_URL`: 运行时注入 Claude API URL（仅在设置时触发覆盖，必须是 `http(s)://` URL）
 - `ZCF_API_MODEL`: 运行时覆盖主模型
 - `ZCF_API_HAIKU_MODEL`: 运行时覆盖 Haiku 模型
 - `ZCF_API_SONNET_MODEL`: 运行时覆盖 Sonnet 模型
@@ -93,6 +99,13 @@ docker compose up -d zs-hub zs-runner
 
 - 默认服务: `zs-runner` (前台运行 `zs runner start-sync`)
 - 仅保留 `zs-hub` + `zs-runner`，不再提供 compose 交互 profile 服务。
+- compose 已配置 healthcheck：`zs-hub` 通过 `/health` 探针检查，`zs-runner` 通过主进程命令行检查。
+
+### 常见错误
+
+- `CLAUDE_CONFIG_DIR` 未设置或不是绝对路径
+- `.env` 不存在（先执行 `cp .env.example .env`）
+- `ZCF_API_KEY` / `ZCF_API_URL` 写反（前者是 token，后者是 URL）
 
 详细使用方法请参阅 [Runner Docker 独立使用指南](docs/guide/docker-runner.md)。
 

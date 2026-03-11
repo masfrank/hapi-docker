@@ -220,7 +220,14 @@ export async function acquireRunnerLock(
         try {
           const lockPid = readFileSync(configuration.runnerLockFile, 'utf-8').trim();
           if (lockPid && !isNaN(Number(lockPid))) {
-            if (!isProcessAlive(Number(lockPid))) {
+            const numericLockPid = Number(lockPid);
+            if (numericLockPid === process.pid) {
+              // Containers frequently reuse PID 1 across restarts. If the lock file claims to be
+              // held by our current PID before we acquired it, it is a stale lock from a previous container.
+              unlinkSync(configuration.runnerLockFile);
+              continue; // Retry acquisition
+            }
+            if (!isProcessAlive(numericLockPid)) {
               // Process doesn't exist, remove stale lock
               unlinkSync(configuration.runnerLockFile);
               continue; // Retry acquisition
