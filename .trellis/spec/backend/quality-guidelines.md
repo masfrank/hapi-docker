@@ -913,6 +913,88 @@ if (availability.status !== 'running') {
 
 ---
 
+## Scenario: Repair Cascade Control Contract (Commit Chain Triage + Goal Drift)
+
+### 1. Scope / Trigger
+- Trigger: the same bug family causes 4+ closely spaced fix commits, repeated review follow-ups, or re-diagnosis after merge/review churn.
+- Why code-spec depth is required:
+  - Long repair chains often indicate the team is no longer solving a single bounded bug, but a moving bundle of root fix, propagation, review response, and adjacent cleanup.
+  - Once commit intent drifts, later fixes can repeat already-disproved conclusions or silently re-open previously closed scope.
+  - The waste is not only code churn; it is repeated thinking churn across the same evidence layers.
+
+### 2. Signatures
+- Commit-chain signature:
+  - `git log --oneline --date=iso -N`
+  - clusters of `fix(...)` commits touching the same files/contract boundary within hours
+- Goal-drift signature:
+  - commit subjects mention different local symptoms while the underlying contract boundary stays the same
+  - e.g. `startup status`, `same PID stale state`, `workflow contract`, `review trigger`, `degraded reusable runner`
+- Rework signature:
+  - later commits partially undo or narrow behavior introduced by earlier commits
+  - merge commits or review fixes reintroduce previously solved behavior
+- Evidence-loop signature:
+  - repeated inspection of the same UI/status layer without escalating to the true source of truth (`git`, workflow runs, caller chain, integration contract)
+
+### 3. Contracts
+- Primary-goal contract:
+  - every repair burst MUST name one primary bug contract in one sentence; work that does not directly serve that sentence MUST be split out or deferred.
+- Change-budget contract:
+  - root fix, required propagation, and optional hardening MUST be classified separately before writing the next patch.
+- Regression-origin contract:
+  - before adding another fix commit, identify which earlier commit introduced the behavior and whether the new patch is a correction, rollback, or hardening layer.
+- Re-diagnosis contract:
+  - if 3+ sequential fix commits touch the same boundary, stop coding and rebuild the full end-to-end model (`trigger -> state model -> caller -> side effect -> verification`) before continuing.
+- Merge-reentry contract:
+  - after a merge commit or large review follow-up, first test whether old behavior was reintroduced; do not invent a fresh root cause until reentry is ruled out.
+- Documentation contract:
+  - once a repair chain is recognized, capture the failed assumptions, redundant paths, and scope rules in spec/guides before resuming more feature work.
+
+### 4. Validation & Error Matrix
+- Many small commits, one unchanged contract boundary -> likely goal drift, not many independent bugs.
+- New commit explains the bug with a different theory but touches the same helper/workflow/caller set -> likely re-diagnosis without a refreshed model.
+- Merge/review fix lands, then old symptom returns -> likely regression reentry, not net-new root cause.
+- Review response mixes root fix, cleanup, docs, and unrelated improvements -> repair scope inflation makes validation slower and conclusions noisier.
+- Engineers repeatedly inspect UI aggregates (`gh pr view`, one helper result, one local test) -> evidence loop prevents escalation to source-of-truth layers.
+
+### 5. Good/Base/Bad Cases
+- Good:
+  - the team names the single active contract, maps which commit introduced the regression, isolates the minimal corrective patch, and defers adjacent cleanup.
+- Base:
+  - multiple commits are still needed, but each one has a declared role: root fix, propagation, verification hardening, or documentation capture.
+- Bad:
+  - every new symptom generates a new theory, fixes overlap in scope, old conclusions are revisited without new evidence, and merge/review churn is treated as unrelated fresh bugs.
+
+### 6. Tests Required (with assertion points)
+- Process assertions:
+  - if a bug family exceeds 3 fix commits, require a written commit-chain timeline before the next code change.
+  - each fix commit must name whether it is correcting a specific prior commit or adding new hardening.
+- Verification assertions:
+  - every diagnosis step must identify its source of truth (`git ref`, workflow-run history, integration test, caller chain) rather than a lagging aggregate signal.
+- Review assertions:
+  - reviewers should challenge patches that combine root fix and optional cleanup without explicit separation.
+- Documentation assertions:
+  - specs/guides must record redundant goals, redundant conclusions, and repeated evidence loops observed in the repair chain.
+
+### 7. Wrong vs Correct
+#### Wrong
+```text
+commit 1: fix startup
+commit 2: fix workflow
+commit 3: fix stale state
+commit 4: fix review trigger
+# each commit changes the theory, but no one stops to ask whether the same contract boundary is being re-opened
+```
+
+#### Correct
+```text
+primary contract: "candidate artifact must be validated before publish; degraded runner must not be treated as healthy reusable"
+introduced by: <commit A>, reintroduced by merge/review in <commit B>
+next patch role: corrective rollback of <commit B>
+deferred items: optional cleanup / broader UX / unrelated hardening
+```
+
+---
+
 ## Scenario: GitHub PR Review Trigger Contract (Push SHA vs pull_request_target Review)
 
 ### 1. Scope / Trigger

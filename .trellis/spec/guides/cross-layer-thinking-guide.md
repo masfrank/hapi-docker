@@ -118,6 +118,30 @@ Reference executable contracts:
 
 ---
 
+## Repair Cascade / Goal Drift Checklist (Many Small Fixes ↔ Long Debug Cycle)
+
+When the same bug family requires many small commits in a short time window, stop and check whether the work has turned into a repair cascade instead of a bounded fix:
+- [ ] Have you written the current primary goal in one sentence (for example: `publish must be gated by pre-publish smoke`, `degraded must not mean healthy reusable runner`) and rejected changes that do not directly serve it?
+- [ ] Are you separating **root fix**, **review follow-up**, **spec capture**, and **adjacent cleanup** into distinct scopes instead of mixing them in the same patch?
+- [ ] Before starting the next fix commit, did you identify which previous commit introduced the regression and whether the new work is undoing or compensating for that commit?
+- [ ] Did you explicitly classify each new idea as one of: required root fix, required propagation, optional hardening, or unrelated improvement?
+- [ ] Have you stopped re-checking the same evidence layer repeatedly (for example only PR UI, only one helper, only one test) without gaining new information?
+- [ ] If more than 3 sequential fix commits touch the same contract boundary, did you pause to rebuild the end-to-end model (`trigger -> state model -> caller -> side effect -> verification`) before writing more code?
+- [ ] Did you verify whether a merge commit reintroduced an already-fixed behavior before inventing a new root cause?
+- [ ] Did you keep one source of truth for conclusions so later commits do not repeat stale assumptions that have already been disproved?
+
+Typical failure pattern:
+- A large feature/refactor changes runtime state model, workflow structure, and test surfaces at the same time.
+- Follow-up fixes correctly address one symptom, but each commit slightly changes the working theory of the bug.
+- A merge/review reintroduces old behavior, and the next fix starts from the newest symptom instead of the original contract boundary.
+- The branch accumulates multiple “small” commits, but several of them are really retries, scope spillover, or repeated diagnosis from the same evidence.
+
+Reference executable contract:
+- `backend/quality-guidelines.md` → `Scenario: Repair Cascade Control Contract (Commit Chain Triage + Goal Drift)`
+
+---
+
+## Session-Scoped Client Cache Checklist (Web State ↔ Session Identity)
 
 When UI state is cached across renders (e.g. `useRef`, query fallback, optimistic state):
 - [ ] Is cache keyed/scoped by stable identity (`session.id`, `workspaceId`, etc.)?
