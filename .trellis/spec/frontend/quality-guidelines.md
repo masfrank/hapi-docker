@@ -164,6 +164,31 @@ HAPI Web 通过以下方式维持高代码质量：
 
 ---
 
+## 检查前的环境恢复
+
+如果本地 / 前端依赖尚未安装，检查命令可能会因以下错误而失败：
+- `tsc: command not found`
+- `vitest: command not found`
+
+这应被视为**环境前置条件问题**，而不是立即判定为代码失败。
+此时应先执行：
+
+```bash
+bun install
+```
+
+然后重新运行必需检查：
+
+```bash
+bun run lint
+bun run type-check
+bun run test
+```
+
+只有在依赖安装完成并重新执行这些命令之后，才应评估代码质量。
+
+---
+
 ## 测试要求
 
 ### 测试环境

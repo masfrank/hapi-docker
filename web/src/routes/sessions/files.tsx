@@ -52,28 +52,6 @@ function SearchIcon(props: { className?: string }) {
     )
 }
 
-function GitBranchIcon(props: { className?: string }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={props.className}
-        >
-            <line x1="6" y1="3" x2="6" y2="15" />
-            <circle cx="6" cy="18" r="3" />
-            <circle cx="18" cy="6" r="3" />
-            <path d="M18 9a9 9 0 0 1-9 9" />
-        </svg>
-    )
-}
-
 function FolderIcon(props: { className?: string }) {
     return (
         <svg
@@ -245,7 +223,6 @@ export default function FilesPage() {
         })
     }, [activeTab, navigate, sessionId])
 
-    const branchLabel = gitStatus?.branch ?? t('session.git.detached')
     const showGitErrorBanner = Boolean(gitError)
     const rootLabel = useMemo(() => {
         const base = session?.metadata?.path ?? sessionId
@@ -335,20 +312,6 @@ export default function FilesPage() {
                     </button>
                 </div>
             </div>
-
-            {!gitLoading && gitStatus && !searchQuery && activeTab === 'changes' ? (
-                <div className="bg-[var(--app-bg)]">
-                    <div className="mx-auto w-full max-w-content border-b border-[var(--app-divider)] px-3 py-2">
-                        <div className="flex items-center gap-2 text-sm">
-                            <GitBranchIcon className="text-[var(--app-hint)]" />
-                            <span className="font-semibold">{branchLabel}</span>
-                        </div>
-                        <div className="text-xs text-[var(--app-hint)]">
-                            {t('session.git.staged', { n: gitStatus.totalStaged })} · {t('session.git.unstaged', { n: gitStatus.totalUnstaged })}
-                        </div>
-                    </div>
-                </div>
-            ) : null}
 
             <div className="flex-1 overflow-y-auto">
                 <div className="mx-auto w-full max-w-content">
