@@ -164,6 +164,31 @@ HAPI Web maintains high code quality through:
 
 ---
 
+### Environment Recovery Before Checks
+
+If local/frontend dependencies are not installed yet, check commands may fail with errors like:
+- `tsc: command not found`
+- `vitest: command not found`
+
+This is treated as an environment prerequisite issue, not an immediate code failure.
+In that case, do this first:
+
+```bash
+bun install
+```
+
+Then rerun the required checks:
+
+```bash
+bun run lint
+bun run type-check
+bun run test
+```
+
+Only judge code quality after dependencies are installed and these commands are rerun.
+
+---
+
 ## Testing Requirements
 
 ### Test Setup
