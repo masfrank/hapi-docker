@@ -296,12 +296,14 @@ Recommended fast verification:
 When Docker image builds use `bun install --frozen-lockfile` in CI:
 - [ ] Does Dockerfile copy **all workspace manifests** used by `bun.lock` before install (root + each workspace `package.json`)?
 - [ ] Was `bun.lock` regenerated and committed from repo root after any workspace dependency/script/workspace metadata change?
+- [ ] If CLI 发布产物包、`optionalDependencies`、平台二进制包列表发生变化，是否也视为依赖图变化并同步更新 `bun.lock`？
 - [ ] Is local verification done with the same strict mode (`bun install --frozen-lockfile`) before pushing?
 - [ ] Does CI pin Bun version consistently with local/dev container to avoid lockfile format drift?
 - [ ] Are PR checks configured to fail early when `bun.lock` is dirty (`git diff --exit-code bun.lock` after install)?
 
 Typical failure pattern:
 - Docker build reaches `RUN bun install --frozen-lockfile` and fails with `lockfile had changes, but lockfile is frozen`.
+- CLI `optionalDependencies` adds/removes a release artifact package (for example a new platform package), but only `package.json` is committed and `bun.lock` is forgotten.
 - Multi-arch Buildx log may show unrelated platform stage cancellation (`arm64 CANCELED`), while root cause is `amd64` lockfile mutation.
 
 Recommended fast verification:
@@ -320,16 +322,20 @@ Recommended fast verification:
 - [ ] 多架构构建是否只保留在 `main` / tag 发布路径，或已有明确文档说明为什么 PR 必须验证多架构？
 - [ ] `packages: write` 是否只授予真正需要推送镜像的 job / 事件？
 - [ ] path filter 是否足够精确，避免与 Docker 无关的 PR 触发镜像流程？
+- [ ] 发布 job 是否显式 `needs` 前置 smoke/validation，并在其失败时禁止进入打包上传？
+- [ ] 评审时是否明确区分了“验证失败导致未进入发布阶段”与“发布步骤本身失败”？
 - [ ] 评审时是否明确区分了“验证失败”与“流程成本设计错误”？
 
 典型坏味道：
 - PR 中 `push=false`，但仍完整执行 QEMU + `linux/amd64,linux/arm64` 构建。
 - 表面上没有“发布”，实际上 PR 仍在消耗接近发布级别的 CI 成本。
+- `publish` job 因 `needs: compose-smoke` 被跳过，但排查时被误读成“上传逻辑没有执行/失效”，而不是“前置门禁未通过”。
 
 推荐快速判断：
 1. 先看 workflow 的事件边界：`pull_request` 是校验还是发布复用？
 2. 再看 Buildx 参数：PR 是否真的需要多架构。
-3. 最后看权限与登录：PR 是否不必要地申请 `packages: write` / GHCR 登录。
+3. 查看 job 依赖：发布是否被 smoke/validation gate 住。
+4. 最后看权限与登录：PR 是否不必要地申请 `packages: write` / GHCR 登录。
 
 Reference executable contract:
 - `backend/quality-guidelines.md` -> `Scenario: Docker Workflow Scope Contract (PR Validation vs Mainline Publish)`

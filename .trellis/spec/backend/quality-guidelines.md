@@ -1012,37 +1012,45 @@ gh run list --branch zs-docker
 ### 3. Contracts
 - Lockfile immutability contract:
   - If any workspace dependency graph changed, `bun.lock` MUST be regenerated and committed before CI Docker build.
+  - Changes to CLI release artifact packages (for example `optionalDependencies` platform package additions/removals) also count as dependency graph changes, even if app runtime code did not change.
 - Docker context contract:
   - Dockerfile MUST copy all manifests participating in lock resolution before `bun install --frozen-lockfile`.
 - Version consistency contract:
   - Bun version in local/dev/CI SHOULD be pinned consistently to avoid lockfile format and resolver drift.
 - Failure attribution contract:
   - In multi-arch logs, canceled secondary platform stages MUST NOT be treated as root cause when primary stage reports lockfile mutation.
+  - If `publish` has `needs: compose-smoke`, then missing package/upload execution after a failed run MUST be interpreted as gate prevention, not as publish-step malfunction.
 
 ### 4. Validation & Error Matrix
 - `lockfile had changes, but lockfile is frozen` in Docker step -> missing/stale committed `bun.lock`; regenerate at repo root and commit.
+- CLI `optionalDependencies` adds/removes platform release package -> must rerun root `bun install` and commit updated `bun.lock`.
 - Added/changed workspace `package.json` not copied before install -> Docker resolver differs from repo state; update Dockerfile copy list.
 - Local `bun install` passes but frozen fails in CI -> Bun version mismatch; align Bun versions and rerun frozen install locally.
 - Buildx shows `linux/arm64 CANCELED` -> secondary cancellation due to another platform failure; inspect first failing platform logs (often amd64).
+- `publish` / upload steps absent after failed workflow -> inspect upstream `needs` jobs first; do not debug registry/upload logic before the gate job is green.
 
 ### 5. Good/Base/Bad Cases
 - Good:
   - Developer updates workspace manifest, runs root `bun install`, commits `bun.lock`, local frozen install passes, CI Docker build passes.
+  - Release artifact package list changes in `cli/package.json`, root lockfile is refreshed, and publish runs only after `compose-smoke` passes.
 - Base:
   - No dependency graph changes; frozen install remains deterministic across local and CI.
 - Bad:
   - Manifest changed without lockfile commit; CI fails at frozen install and noise from other platform cancellation obscures diagnosis.
+  - Team sees no upload job execution and misdiagnoses registry/publish logic, while the actual cause is an upstream smoke gate failure.
 
 ### 6. Tests Required (with assertion points)
 - Local pre-push assertions:
   - `bun install --frozen-lockfile` succeeds at repo root.
   - `git diff --exit-code bun.lock` returns clean after install.
+  - If CLI release package list changed, verify the corresponding lockfile entries are present.
 - Docker assertions:
   - `docker build -f Dockerfile.hub .` reaches install step without lockfile mutation.
   - `docker build -f Dockerfile.runner .` reaches install step without lockfile mutation.
 - CI assertions:
   - `.github/workflows/docker-images.yml` path filter includes lock/manifests and Dockerfiles.
   - Build matrix fail log triage identifies first failing platform and command.
+  - `publish` remains gated by `needs: compose-smoke` and does not execute when smoke validation fails.
 
 ### 7. Wrong vs Correct
 #### Wrong
