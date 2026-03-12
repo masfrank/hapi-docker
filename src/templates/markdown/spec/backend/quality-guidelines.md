@@ -999,87 +999,87 @@ deferred items: optional cleanup / broader UX / unrelated hardening
 
 ---
 
-## Scenario: Low-ROI Work Control Contract (Stop Signal + Defer Criteria)
+## Scenario: 低 ROI 工作控制契约（停止信号 + 延后判定）
 
 ### 1. Scope / Trigger
-- Trigger: a fix/feature/refactor continues beyond the point where the original blocker is resolved, accumulating commits that provide diminishing marginal value.
-- Why code-spec depth is required:
-  - Low-ROI work is not a technical bug; it is a **decision-making bug** where no one explicitly asks "should we stop here?"
-  - Each incremental step feels reasonable in isolation, but the cumulative cost (time, review churn, context-switch) exceeds the cumulative benefit.
-  - The work is often framed as "finishing properly" or "being thorough", which makes it psychologically hard to stop even when ROI has dropped to near zero.
+- Trigger：某个修复 / 功能 / 重构在原始 blocker 已解决之后仍继续推进，并不断累积边际收益递减的 commit。
+- 为什么需要 code-spec 深度：
+  - 低 ROI 工作通常不是技术 bug，而是**决策 bug**：没有人明确问一句“现在是不是应该停了？”
+  - 每一步单独看都像是合理的小补充，但累计成本（时间、review 往返、上下文切换）已经超过累计收益。
+  - 这类工作常被包装成“顺手补完整”“一次性收干净”“写得更漂亮”，所以在心理上很难及时停止。
 
 ### 2. Signatures
-- Blocker-resolution signature:
-  - the original P0 symptom (crash, broken gate, user-facing failure) is already fixed
-  - subsequent commits address: logging, edge cases, refactoring, exhaustive specs, preemptive hardening
-- Effort-escalation signature:
-  - work that was estimated at "1 hour" has now consumed 4+ hours
-  - multiple review cycles for "polish" rather than "correctness"
-- Impact-gap signature:
-  - if you ask "what user-facing behavior changes if we defer this commit?", the answer is "none" or "slightly cleaner internal state"
-- Exit-condition signature:
-  - no one has written down what "done" looks like; work continues until it "feels complete"
+- Blocker-resolution signature：
+  - 原始 P0 症状（崩溃、门禁失效、用户可见失败）已经被修复。
+  - 后续 commit 开始转向：日志、边缘 case、重构、穷尽式 spec、预防性 hardening。
+- Effort-escalation signature：
+  - 原本预估 1 小时左右的工作，已经消耗 4 小时以上。
+  - 多轮 review 讨论的重点变成“更优雅 / 更完整”，而不是“是否还错误”。
+- Impact-gap signature：
+  - 如果问“把这个 commit 延后，对用户可见行为有什么变化？”，答案是“没有”或“只是内部状态更整洁一点”。
+- Exit-condition signature：
+  - 没有人提前写下 done 的定义；工作一直持续到“感觉差不多完整”为止。
 
 ### 3. Contracts
-- Stop-signal contract:
-  - once the original blocker is resolved, explicitly ask: "if we stop here, what observable contract breaks?"
-  - if the answer is "none", the remaining work is optional and should be evaluated for ROI before continuing.
-- Defer-criteria contract:
-  - work that improves internal cleanliness, covers hypothetical edge cases, or writes exhaustive specs without changing external behavior SHOULD be deferred unless:
-    1. it is required by a reviewer/CI/user complaint, or
-    2. the cost of deferring (future bug risk, future rework) clearly exceeds the cost of continuing (time, review churn).
-- Done-definition contract:
-  - before starting a fix/feature, write down the exit condition: "done = X symptom resolved + Y contract verified".
-  - if work continues beyond that exit condition, it MUST be justified with a new explicit goal.
-- ROI-comparison contract:
-  - for each additional commit after the blocker is resolved, explicitly compare:
-    - cost of continuing: time, context-switch, review cycles
-    - cost of deferring: future bug risk, future rework
-  - if cost of continuing > cost of deferring, stop and defer.
+- Stop-signal contract：
+  - 原始 blocker 一旦解决，必须显式问：**“如果现在停下，哪个可观察契约会坏？”**
+  - 如果答案是“没有”，剩余工作默认属于可选项，继续前必须重新评估 ROI。
+- Defer-criteria contract：
+  - 仅改善内部整洁度、覆盖假想 edge case、补穷尽式规范、但不改变外部行为的工作，默认 SHOULD 延后，除非：
+    1. reviewer / CI / 用户明确要求现在处理；或
+    2. 延后的成本（未来 bug 风险、未来返工）明显大于继续的成本（时间、review 往返、上下文切换）。
+- Done-definition contract：
+  - 在开始修复 / 功能前，先写清退出条件：`done = X 症状被消除 + Y 契约已验证`。
+  - 如果工作继续超出这个退出条件，必须为新增工作写出新的明确目标，不能只靠“顺手一起做”。
+- ROI-comparison contract：
+  - 在原始 blocker 解决之后，每增加一个 commit，都要显式比较：
+    - 继续的成本：时间、上下文切换、review 往返、merge 风险
+    - 延后的成本：未来 bug 风险、未来返工
+  - 如果继续的成本 > 延后的成本，就应该停止并延后。
 
 ### 4. Validation & Error Matrix
-- Original blocker resolved, but work continues into polish -> likely low-ROI churn.
-- Work framed as "finishing properly" without a concrete blocker -> likely optional work disguised as required work.
-- Multiple commits that each feel "small" but cumulative ROI is near zero -> likely incremental scope creep.
-- No one can answer "what breaks if we stop here?" with a concrete contract -> likely no observable blocker remains.
-- Effort exceeds estimate by 2x+ but impact remains "internal cleanliness" -> likely diminishing returns.
+- 原始 blocker 已修复，但工作仍继续进入 polish -> 高概率是低 ROI churn。
+- 工作被描述成“顺手收尾 / 补完整”，但没有新的明确 blocker -> 高概率是把可选工作伪装成必做工作。
+- 多个 commit 单看都很小，但累计 ROI 逼近于 0 -> 高概率是渐进式 scope creep。
+- 没人能明确回答“如果现在停下，哪个契约会坏？” -> 高概率说明已经没有剩余的可观察 blocker。
+- 投入时间超出预估 2 倍以上，但收益仍只是“更整洁 / 更优雅 / 更完整” -> 高概率已经进入收益递减区间。
 
 ### 5. Good/Base/Bad Cases
-- Good:
-  - blocker resolved, team explicitly asks "should we stop here?", remaining work is deferred with a clear ROI justification.
-- Base:
-  - blocker resolved, some polish continues, but team writes down the exit condition and stops when it is reached.
-- Bad:
-  - blocker resolved, work continues indefinitely into edge cases, refactoring, exhaustive specs, and preemptive hardening without anyone asking "should we stop?"
+- Good：
+  - blocker 修复后，团队显式问“现在是不是应该停”，其余工作按 ROI 归档为 deferred 项。
+- Base：
+  - blocker 修复后，仍做少量 polish，但团队写下退出条件，并在达到条件后停止。
+- Bad：
+  - blocker 修复后，工作继续扩张到边缘 case、相邻重构、穷尽式 spec、预防性 hardening，却没有任何人问“是否已经够了”。
 
 ### 6. Tests Required (with assertion points)
-- Process assertions:
-  - before starting a fix/feature, write down the exit condition: "done = X symptom resolved + Y contract verified".
-  - after the blocker is resolved, explicitly ask: "if we stop here, what observable contract breaks?"
-- Review assertions:
-  - reviewers should challenge commits that continue beyond the original blocker without a concrete new blocker or ROI justification.
-- Documentation assertions:
-  - specs/guides must record the stop-signal checklist and defer-criteria contract so future work can be evaluated for ROI before continuing.
+- Process assertions：
+  - 开始工作前必须写出：`done = X 症状被消除 + Y 契约已验证`。
+  - blocker 解决后必须显式问：**“如果现在停下，哪个可观察契约会坏？”**
+- Review assertions：
+  - reviewer 应主动质疑那些已经超出原始 blocker、却没有新的明确目标或 ROI 理由的 commit。
+- Documentation assertions：
+  - spec / guides 必须记录停止信号 checklist 与延后判定规则，避免未来继续用“感觉还没收完”驱动工作。
 
 ### 7. Wrong vs Correct
 #### Wrong
 ```text
-commit 1: fix publish gate (blocker resolved)
-commit 2: add better logging
-commit 3: cover edge case X
-commit 4: refactor adjacent code
-commit 5: write exhaustive spec
-commit 6: preemptive hardening for hypothetical case Y
-# no one asks "should we stop?" because each step feels "reasonable"
+commit 1: 修复 publish gate（blocker 已解决）
+commit 2: 补更好的日志
+commit 3: 覆盖边缘 case X
+commit 4: 顺手重构相邻代码
+commit 5: 写一整套穷尽式 spec
+commit 6: 为假想问题 Y 做预防性 hardening
+# 每一步都感觉“顺手且合理”，但没有人问：现在是不是应该停？
 ```
 
 #### Correct
 ```text
-commit 1: fix publish gate (blocker resolved)
-# stop and ask: "if we stop here, what observable contract breaks?"
-# answer: "none"
-# defer: better logging, edge case X, refactoring, exhaustive spec, preemptive hardening
-# or: if continuing, write explicit ROI justification for each deferred item
+commit 1: 修复 publish gate（blocker 已解决）
+# 立刻问：如果现在停下，哪个可观察契约会坏？
+# 答案：没有
+# 那么把以下内容延后：更好的日志、边缘 case X、相邻重构、穷尽式 spec、预防性 hardening
+# 如果仍要继续，必须分别写出每项工作的 ROI 理由
 ```
 
 ---

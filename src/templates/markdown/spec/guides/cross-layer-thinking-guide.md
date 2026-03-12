@@ -141,27 +141,27 @@ Reference executable contract:
 
 ---
 
-## Low-ROI Work Detection Checklist (Effort ↔ Impact ↔ Stop Signal)
+## 低 ROI 工作停止信号检查清单
 
-When you are deep into a fix/feature/refactor, periodically check whether the work has turned into low-ROI churn that should be stopped or deferred:
-- [ ] Can you state the **user-facing impact** or **business-critical blocker** this work unblocks in one sentence? If not, is this really P0?
-- [ ] If this work takes 2+ hours and the result is "slightly better internal state" or "more complete spec coverage" without changing external behavior, should it be deferred?
-- [ ] Are you fixing something that **no actual user/reviewer/CI has complained about**, or are you preemptively hardening based on hypothetical edge cases?
-- [ ] If you remove this work entirely, does any **observable contract** break, or does it only affect internal "cleanliness" / "completeness"?
-- [ ] Are you spending time on "making the fix more elegant" or "covering more edge cases" when the original symptom is already resolved?
-- [ ] Did you explicitly compare the **cost of continuing** (time, context-switch, review churn) vs **cost of deferring** (future bug risk, future rework)?
-- [ ] If someone asks "why are we still working on this?", can you answer with a concrete blocker rather than "it feels incomplete"?
-- [ ] Have you written down what **done** looks like for this work, or are you iterating without a clear exit condition?
+当你已经深陷某个修复 / 功能 / 重构，请定期检查：这项工作是否已经变成应该停止或延后的低 ROI 消耗：
+- [ ] 你能否用一句话说清：这项工作解除的是哪个**用户可见影响**或**业务关键 blocker**？如果说不清，它真的是当前 P0 吗？
+- [ ] 如果这项工作已经持续 2 小时以上，而结果仍只是“内部状态更整洁一点”或“规范覆盖更完整一点”，它是否应该延后？
+- [ ] 你现在修的是**真实用户 / reviewer / CI 已经指出的问题**，还是只是基于假想 edge case 做预防性 hardening？
+- [ ] 如果完全删掉这项工作，是否有任何**可观察契约**会坏，还是只影响内部“整洁度 / 完整度 / 优雅性”？
+- [ ] 原始症状已经解决的前提下，你现在投入时间，是在“让修复更优雅”“多补一些边界”，还是在解决新的明确 blocker？
+- [ ] 你是否显式比较过：**继续的成本**（时间、上下文切换、review 往返、merge 风险） vs **延后的成本**（未来 bug 风险、未来返工）？
+- [ ] 如果有人问“为什么这件事还没停？”，你能否给出一个新的明确 blocker，而不是回答“感觉还没收干净”？
+- [ ] 你是否已经写下这项工作的 **done 定义**，还是在没有退出条件的情况下反复迭代？
 
-Typical failure pattern:
-- A fix starts with a clear P0 blocker (for example: publish gate broken, runner crashes).
-- The fix resolves the blocker, but then continues into: better logging, more edge-case coverage, refactoring adjacent code, writing exhaustive specs, preemptive hardening.
-- Each incremental step feels "small" and "reasonable", but the cumulative ROI drops because the original blocker is already resolved.
-- No one explicitly asks "should we stop here?" because the work is framed as "finishing properly" rather than "optional polish".
-- The branch accumulates commits, review cycles, and context-switch cost, but the marginal value of each additional commit is near zero.
+典型失败模式：
+- 修复起点是明确的 P0 blocker（例如：publish gate 失效、runner 崩溃）。
+- blocker 被修掉后，工作继续扩展到：更好的日志、更多边缘 case、顺手重构相邻代码、穷尽式 spec、预防性 hardening。
+- 每一步单独看都很小、很合理，但累计 ROI 已经快速下降，因为原始 blocker 早就不存在了。
+- 没有人明确问“现在是不是应该停”，因为工作被表述成“顺手收尾”“一次性收干净”，而不是“可选 polish”。
+- 最终分支累积大量 commit、review 往返和上下文切换，但后续每个 commit 的边际收益接近于 0。
 
 Reference executable contract:
-- `backend/quality-guidelines.md` → `Scenario: Low-ROI Work Control Contract (Stop Signal + Defer Criteria)`
+- `backend/quality-guidelines.md` → `Scenario: 低 ROI 工作控制契约（停止信号 + 延后判定）`
 
 ---
 
