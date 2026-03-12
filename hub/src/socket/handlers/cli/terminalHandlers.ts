@@ -101,7 +101,15 @@ export function registerTerminalHandlers(socket: CliSocketWithData, deps: Termin
         if (!parsed.success) {
             return
         }
+
         forwardTerminalEvent('terminal:error', parsed.data)
+
+        if (
+            parsed.data.message === 'Terminal not found.'
+            || parsed.data.message === 'Terminal closed due to inactivity.'
+        ) {
+            terminalRegistry.remove(parsed.data.terminalId)
+        }
     })
 }
 

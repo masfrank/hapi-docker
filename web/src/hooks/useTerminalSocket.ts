@@ -42,6 +42,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): {
     connect: (cols: number, rows: number) => void
     write: (data: string) => void
     resize: (cols: number, rows: number) => void
+    close: (terminalId?: string) => void
     disconnect: () => void
     onOutput: (handler: (data: string) => void) => void
     onExit: (handler: (code: number | null, signal: string | null) => void) => void
@@ -321,6 +322,18 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): {
         socket.emit('terminal:resize', { terminalId: terminalIdRef.current, cols, rows })
     }, [logTerminalEvent])
 
+    const close = useCallback((terminalId = terminalIdRef.current) => {
+        const socket = socketRef.current
+        if (!socket || !socket.connected) {
+            return
+        }
+        logTerminalEvent('log', 'terminal.close.request', 'success', {
+            sessionId: sessionIdRef.current,
+            terminalId
+        })
+        socket.emit('terminal:close', { terminalId })
+    }, [logTerminalEvent])
+
     const disconnect = useCallback(() => {
         const socket = socketRef.current
         if (!socket) {
@@ -349,6 +362,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): {
         connect,
         write,
         resize,
+        close,
         disconnect,
         onOutput,
         onExit

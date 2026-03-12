@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 import { registerTerminalHandlers } from './terminal'
+import { registerTerminalHandlers as registerCliTerminalHandlers } from './cli/terminalHandlers'
 import { TerminalRegistry } from '../terminalRegistry'
 import type { SocketServer, SocketWithData } from '../socketTypes'
+import type { StoredSession } from '../../store'
 
 type EmittedEvent = {
     event: string
@@ -295,6 +297,50 @@ describe('terminal socket handlers', () => {
         )
         expect(duplicateIdError).toBeUndefined()
         expect(terminalRegistry.get('terminal-1')?.cliSocketId).toBe('cli-socket-1')
+    })
+
+
+    it('removes stale detached terminal when cli reports terminal not found', () => {
+        const { io, terminalSocket, cliNamespace, terminalRegistry } = createHarness()
+        const cliSocket = new FakeSocket('cli-socket-1')
+        connectCliSocket(cliNamespace, cliSocket, 'session-1')
+
+        terminalSocket.trigger('terminal:create', {
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            cols: 90,
+            rows: 24
+        })
+
+        terminalSocket.trigger('disconnect')
+        expect(terminalRegistry.get('terminal-1')?.socketId).toBeNull()
+
+        const cliHandlerSocket = new FakeSocket('cli-socket-1')
+        cliHandlerSocket.data.namespace = 'default'
+        const terminalNamespace = io.of('/terminal')
+        const detachedTerminalSocket = new FakeSocket('terminal-socket-2')
+        terminalNamespace.sockets.set(detachedTerminalSocket.id, detachedTerminalSocket)
+        terminalRegistry.rebindSocket('terminal-1', detachedTerminalSocket.id)
+
+        registerCliTerminalHandlers(cliHandlerSocket as never, {
+            terminalRegistry,
+            terminalNamespace: terminalNamespace as never,
+            resolveSessionAccess: () => ({ ok: true, value: {} as StoredSession }),
+            emitAccessError: () => {}
+        })
+
+        cliHandlerSocket.trigger('terminal:error', {
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            message: 'Terminal not found.'
+        })
+
+        expect(terminalRegistry.get('terminal-1')).toBeNull()
+        expect(lastEmit(detachedTerminalSocket, 'terminal:error')?.data).toEqual({
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            message: 'Terminal not found.'
+        })
     })
 
     it('enforces per-socket terminal limits', () => {

@@ -165,6 +165,7 @@ export function TerminalPage() {
     const terminalRef = useRef<Terminal | null>(null)
     const inputDisposableRef = useRef<{ dispose: () => void } | null>(null)
     const connectOnceRef = useRef(false)
+    const closeRef = useRef<(terminalId?: string) => void>(() => {})
     const disconnectRef = useRef<() => void>(() => {})
     const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null)
     const modifierStateRef = useRef<ModifierState>({ ctrl: false, alt: false })
@@ -178,20 +179,23 @@ export function TerminalPage() {
 
     const handleTerminalNotFound = useCallback(() => {
         pendingReconnectToastRef.current = true
+        const previousTerminalId = terminalId
+        closeRef.current(previousTerminalId)
+        disconnectRef.current()
         const nextState = resetTerminalSessionState(sessionId)
         setTerminalStateSnapshot(nextState)
         setExitInfo(null)
         connectOnceRef.current = false
         replayedBufferRef.current = null
         terminalRef.current?.reset()
-        disconnectRef.current()
-    }, [sessionId])
+    }, [sessionId, terminalId])
 
     const {
         state: terminalState,
         connect,
         write,
         resize,
+        close,
         disconnect,
         onOutput,
         onExit,
@@ -204,8 +208,9 @@ export function TerminalPage() {
     })
 
     useEffect(() => {
+        closeRef.current = close
         disconnectRef.current = disconnect
-    }, [disconnect])
+    }, [close, disconnect])
 
     useEffect(() => {
         setTerminalStateSnapshot(getTerminalSessionState(sessionId))
@@ -468,6 +473,9 @@ export function TerminalPage() {
     )
 
     const handleResetTerminal = useCallback(() => {
+        const previousTerminalId = terminalId
+        close(previousTerminalId)
+        disconnect()
         const nextState = resetTerminalSessionState(sessionId)
         pendingReconnectToastRef.current = false
         setTerminalStateSnapshot(nextState)
@@ -475,8 +483,7 @@ export function TerminalPage() {
         connectOnceRef.current = false
         replayedBufferRef.current = null
         terminalRef.current?.reset()
-        disconnect()
-    }, [disconnect, sessionId])
+    }, [close, disconnect, sessionId, terminalId])
 
     if (!session) {
         return (
