@@ -7,8 +7,8 @@
 import { FileHandle } from 'node:fs/promises'
 import { readFile, writeFile, mkdir, open, unlink, rename, stat } from 'node:fs/promises'
 import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs'
-import { configuration } from './configuration'
-import { isProcessAlive } from './utils/process';
+import { configuration } from '@/configuration'
+import { isProcessAlive } from '@/utils/process';
 
 interface Settings {
   // This ID is used as the actual database ID on the server

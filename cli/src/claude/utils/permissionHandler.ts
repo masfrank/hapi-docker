@@ -306,11 +306,7 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
             await delay(1000);
             toolCallId = this.resolveToolCallId(toolName, input);
             if (!toolCallId) {
-                // Sub-agent (teammate) tool calls may not appear in parent's toolCalls list.
-                // Generate a synthetic ID so the permission request can still be registered
-                // in agentState.requests and resolved via the standard RPC path.
-                toolCallId = `subagent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                logger.debug(`[Permission] Generated synthetic toolCallId for ${toolName}: ${toolCallId}`);
+                throw new Error(`Could not resolve tool call ID for ${toolName}`);
             }
         }
         return this.handlePermissionRequest(toolCallId, toolName, input, options.signal);

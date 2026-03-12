@@ -11,8 +11,6 @@ import { SDKToLogConverter } from "./utils/sdkToLogConverter";
 import { PLAN_FAKE_REJECT } from "./sdk/prompts";
 import { EnhancedMode } from "./loop";
 import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
-import { createSessionScanner } from "./utils/sessionScanner";
-import type { RawJSONLines } from "./types";
 import type { ClaudePermissionMode } from "@hapi/protocol/types";
 import {
     RemoteLauncherBase,
@@ -95,59 +93,6 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
 
         const permissionHandler = new PermissionHandler(session);
         this.permissionHandler = permissionHandler;
-
-        const recentlyForwardedTeamPayloads = new Set<string>();
-        const teamPayloadOrder: string[] = [];
-        const MAX_TEAM_PAYLOAD_CACHE = 256;
-        const rememberForwardedTeamPayload = (payload: string): boolean => {
-            if (recentlyForwardedTeamPayloads.has(payload)) {
-                return false;
-            }
-            recentlyForwardedTeamPayloads.add(payload);
-            teamPayloadOrder.push(payload);
-            if (teamPayloadOrder.length > MAX_TEAM_PAYLOAD_CACHE) {
-                const oldest = teamPayloadOrder.shift();
-                if (oldest) {
-                    recentlyForwardedTeamPayloads.delete(oldest);
-                }
-            }
-            return true;
-        };
-
-        const containsTeamSignal = (entry: RawJSONLines): boolean => {
-            if (entry.type !== 'user') return false;
-            const payload = JSON.stringify(entry.message.content);
-            if (!payload) return false;
-            return payload.includes('teammate-message')
-                || payload.includes('permission_request')
-                || payload.includes('idle_notification');
-        };
-
-        const scanner = await createSessionScanner({
-            sessionId: session.sessionId,
-            workingDirectory: session.path,
-            seedExistingMessages: false,
-            onMessage: (message) => {
-                if (!containsTeamSignal(message)) {
-                    return;
-                }
-                const payloadKey = JSON.stringify({
-                    type: message.type,
-                    content: message.type === 'user' ? message.message.content : null
-                });
-                if (!rememberForwardedTeamPayload(payloadKey)) {
-                    logger.debug('[remote][team-scanner] deduped teammate payload');
-                    return;
-                }
-                logger.debug(`[remote][team-scanner] forwarding teammate message uuid=${message.uuid}`);
-                session.client.sendClaudeSessionMessage(message);
-            }
-        });
-
-        const scannerSessionFoundHandler = (sessionId: string) => {
-            scanner.onNewSession(sessionId);
-        };
-        session.addSessionFoundCallback(scannerSessionFoundHandler);
 
         const messageQueue = new OutgoingMessageQueue(
             (logMessage) => session.client.sendClaudeSessionMessage(logMessage)
@@ -448,8 +393,6 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                 }
             }
         } finally {
-            session.removeSessionFoundCallback(scannerSessionFoundHandler);
-            await scanner.cleanup();
             if (this.permissionHandler) {
                 this.permissionHandler.reset();
             }

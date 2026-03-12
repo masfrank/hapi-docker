@@ -1,8 +1,8 @@
 import packageJson from '../../package.json'
-import { ensureRuntimeAssets } from '../runtime/assets'
-import { isBunCompiled } from '../projectPath'
-import { logger } from '../ui/logger'
-import { getCliArgs } from '../utils/cliArgs'
+import { ensureRuntimeAssets } from '@/runtime/assets'
+import { isBunCompiled } from '@/projectPath'
+import { logger } from '@/ui/logger'
+import { getCliArgs } from '@/utils/cliArgs'
 import { resolveCommand } from './registry'
 
 export async function runCli(): Promise<void> {

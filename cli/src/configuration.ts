@@ -9,7 +9,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import packageJson from '../package.json'
-import { getCliArgs } from './utils/cliArgs'
+import { getCliArgs } from '@/utils/cliArgs'
 
 class Configuration {
     private _apiUrl: string

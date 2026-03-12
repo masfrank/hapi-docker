@@ -7,10 +7,10 @@
 
 import chalk from 'chalk'
 import { appendFileSync } from 'fs'
-import { configuration } from '../configuration'
+import { configuration } from '@/configuration'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join, basename } from 'node:path'
-import { readRunnerState } from '../persistence'
+import { readRunnerState } from '@/persistence'
 
 /**
  * Consistent date/time formatting functions
