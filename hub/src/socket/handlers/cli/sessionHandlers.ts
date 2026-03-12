@@ -88,37 +88,61 @@ function syncAgentPermissionsToTeamState(
         ? activeMembers[0].name
         : 'teammate'
 
-    // Add new agentState.requests entries as pending permissions
+    // Add new agentState.requests entries as pending permissions.
+    // If a pending permission already exists from a teammate message (with a different requestId
+    // like "perm-..."), update its toolUseId to point to the agentState.requests key so the
+    // web UI can use RPC-based approval instead of falling back to text messages.
     const newPerms: TeamState['pendingPermissions'] = []
+    let hasUpdatedExisting = false
     for (const [requestId, rawReq] of Object.entries(requests)) {
         if (existingPermIds.has(requestId)) continue
         const req = isObject(rawReq) ? rawReq : null
         if (!req) continue
 
-        newPerms.push({
-            requestId,
-            toolUseId: requestId,
-            memberName: defaultMemberName,
-            toolName: typeof req.tool === 'string' ? req.tool : 'unknown',
-            description: typeof req.description === 'string' ? req.description : undefined,
-            input: req.arguments,
-            createdAt: typeof req.createdAt === 'number' ? req.createdAt : Date.now(),
-            status: 'pending'
-        })
+        const toolName = typeof req.tool === 'string' ? req.tool : 'unknown'
+
+        // Check if there's already a pending permission from a teammate message for the same tool
+        const existingMatch = existingPerms.find(p =>
+            p.status === 'pending' &&
+            p.toolName === toolName &&
+            p.requestId !== requestId &&
+            p.toolUseId !== requestId
+        )
+
+        if (existingMatch) {
+            // Update existing entry's toolUseId to point to agentState.requests key
+            // so the web UI's `perm.toolUseId ?? perm.requestId` picks the correct ID for RPC
+            existingMatch.toolUseId = requestId
+            hasUpdatedExisting = true
+        } else {
+            newPerms.push({
+                requestId,
+                toolUseId: requestId,
+                memberName: defaultMemberName,
+                toolName,
+                description: typeof req.description === 'string' ? req.description : undefined,
+                input: req.arguments,
+                createdAt: typeof req.createdAt === 'number' ? req.createdAt : Date.now(),
+                status: 'pending'
+            })
+        }
     }
 
-    // Mark permissions as resolved when their request is no longer in agentState.requests
+    // Mark permissions as resolved when their request is no longer in agentState.requests.
+    // Check both requestId and toolUseId since they may differ (teammate message vs agentState key).
     const requestIds = new Set(Object.keys(requests))
     let hasResolved = false
     const resolvedPerms = existingPerms.map(p => {
-        if (p.status === 'pending' && !requestIds.has(p.requestId)) {
+        if (p.status === 'pending'
+            && !requestIds.has(p.requestId)
+            && !(p.toolUseId && requestIds.has(p.toolUseId))) {
             hasResolved = true
             return { ...p, status: 'approved' as const }
         }
         return p
     })
 
-    if (newPerms.length === 0 && !hasResolved) return
+    if (newPerms.length === 0 && !hasResolved && !hasUpdatedExisting) return
 
     const updatedPerms = hasResolved
         ? [...resolvedPerms, ...newPerms]
