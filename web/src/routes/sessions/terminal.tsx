@@ -219,6 +219,11 @@ export function TerminalPage() {
         replayedBufferRef.current = null
     }, [sessionId])
 
+    // Reset connection flag when component mounts (e.g., when navigating back to terminal page)
+    useEffect(() => {
+        connectOnceRef.current = false
+    }, [])
+
     const replayStoredBuffer = useCallback((terminal: Terminal | null, outputBuffer: string) => {
         if (!terminal) {
             return
@@ -370,13 +375,17 @@ export function TerminalPage() {
         disconnect()
     }, [sessionId, disconnect])
 
+    // Cleanup on component unmount only (not on dependency changes)
+    // Empty deps array is intentional - we want this to run only on mount/unmount
     useEffect(() => {
         return () => {
             inputDisposableRef.current?.dispose()
-            connectOnceRef.current = false
-            disconnect()
+            // Note: We intentionally do NOT disconnect here.
+            // The socket should remain connected when navigating within the same session.
+            // Disconnection only happens when sessionId changes (see useEffect above).
+            // This allows the terminal to reattach when the user returns to this page.
         }
-    }, [disconnect])
+    }, [])
 
     useEffect(() => {
         if (session?.active === false) {

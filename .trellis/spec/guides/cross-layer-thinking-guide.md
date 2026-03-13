@@ -492,3 +492,68 @@ Source → Transform → Store → Retrieve → Transform → Display
 - 调试于是一路漂移到测试断言，尽管真正的 bug 是 launcher / runtime 契约违规。
 
 ---
+
+## 前端组件生命周期 vs 后端资源生命周期检查清单
+
+当前端组件需要持有后端资源（WebSocket、终端进程、文件监听等）时：
+- [ ] 你是否明确区分了"组件 unmount"和"资源销毁"这两个不同的事件？
+- [ ] 页面切换时，后端资源是否应该保持存活（session-scoped）还是应该销毁（component-scoped）？
+- [ ] 如果资源是 session-scoped，前端状态管理是否使用了稳定的资源标识符（不随组件重新 mount 而变化）？
+- [ ] React cleanup 函数中是否只清理"组件相关的副作用"（事件监听、定时器），而不是"后端资源本身"？
+- [ ] 如果后端支持 detach/reattach 机制，前端是否正确使用了相同的资源 ID 进行重连？
+- [ ] 资源标识符的生成时机是否正确（应该在资源创建时生成，而不是在组件 mount 时生成）？
+- [ ] 是否有明确的"显式销毁"操作（如用户点击"关闭终端"按钮），与"隐式 detach"（页面切换）区分开？
+
+典型失败模式：
+- **终端页面切换导致终端退出**：
+  - 前端在 `useEffect` cleanup 中调用 `resetTerminalSessionState()`，生成新的 `terminalId`
+  - 用户返回终端页面时，前端使用新 ID 尝试连接，但后端仍持有旧 ID 的终端进程
+  - 后端的旧终端因为找不到匹配的 socket 而被 idle timeout 清理
+  - **根因**：混淆了"组件生命周期"和"资源生命周期"
+
+- **WebSocket 重连失败**：
+  - 组件 unmount 时断开连接并清空 session ID
+  - 组件重新 mount 时生成新 session ID
+  - 后端无法识别新 ID，拒绝连接
+
+推荐模式：
+
+```typescript
+// ❌ 错误：在 cleanup 中重置资源标识符
+useEffect(() => {
+    return () => {
+        closeConnection()
+        resetSessionState()  // 生成新 ID - 错误！
+    }
+}, [sessionId])
+
+// ✅ 正确：cleanup 只 detach，不重置 ID
+useEffect(() => {
+    return () => {
+        detachConnection()  // 只断开连接，保留 ID
+    }
+}, [sessionId])
+
+// ✅ 正确：显式销毁操作单独处理
+const handleCloseTerminal = () => {
+    closeConnection()
+    destroyTerminalSession()  // 明确的销毁意图
+}
+```
+
+资源所有权模型：
+
+| 资源类型 | 生命周期 | 标识符生成时机 | Cleanup 行为 |
+|---------|---------|---------------|-------------|
+| 终端进程 | Session-scoped | 首次创建终端时 | Detach socket，保留 ID |
+| WebSocket 连接 | Session-scoped | 会话初始化时 | Disconnect，保留 session ID |
+| UI 状态（滚动位置） | Component-scoped | 组件 mount 时 | 完全清理 |
+| 临时缓存 | Component-scoped | 组件 mount 时 | 完全清理 |
+
+快速验证：
+1. 检查所有 `useEffect` cleanup 函数，确认是否误用了"重置资源 ID"的操作
+2. 追踪资源标识符的生成位置，确认是否在正确的时机生成
+3. 添加 E2E 测试：页面切换后返回，资源应该仍然可用
+4. 在后端添加监控：孤立资源数量（有进程但无 socket 的资源）
+
+---

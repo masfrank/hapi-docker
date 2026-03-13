@@ -474,3 +474,68 @@ Typical failure pattern:
 - Debugging then drifts into test assertions, even though the real bug is a launcher/runtime contract violation.
 
 ---
+
+## Frontend Component Lifecycle vs Backend Resource Lifecycle Checklist
+
+When a frontend component needs to hold backend resources (WebSocket, terminal process, file watcher, etc.):
+- [ ] Have you clearly distinguished between "component unmount" and "resource destruction" as two separate events?
+- [ ] On page navigation, should the backend resource stay alive (session-scoped) or be destroyed (component-scoped)?
+- [ ] If the resource is session-scoped, does the frontend state management use a stable resource identifier (that doesn't change when the component remounts)?
+- [ ] Does the React cleanup function only clean up "component-related side effects" (event listeners, timers), not "the backend resource itself"?
+- [ ] If the backend supports detach/reattach mechanism, does the frontend correctly use the same resource ID for reconnection?
+- [ ] Is the resource identifier generated at the correct time (should be when the resource is created, not when the component mounts)?
+- [ ] Is there a clear "explicit destroy" operation (like user clicking "close terminal" button), distinct from "implicit detach" (page navigation)?
+
+Typical failure patterns:
+- **Terminal exits when navigating away from terminal page**:
+  - Frontend calls `resetTerminalSessionState()` in `useEffect` cleanup, generating a new `terminalId`
+  - When user returns to terminal page, frontend tries to connect with new ID, but backend still holds the old ID's terminal process
+  - Backend's old terminal gets cleaned up by idle timeout because it can't find a matching socket
+  - **Root cause**: Confused "component lifecycle" with "resource lifecycle"
+
+- **WebSocket reconnection failure**:
+  - Component unmount disconnects and clears session ID
+  - Component remount generates new session ID
+  - Backend doesn't recognize new ID, rejects connection
+
+Recommended patterns:
+
+```typescript
+// ❌ Wrong: Reset resource identifier in cleanup
+useEffect(() => {
+    return () => {
+        closeConnection()
+        resetSessionState()  // Generates new ID - wrong!
+    }
+}, [sessionId])
+
+// ✅ Correct: Cleanup only detaches, doesn't reset ID
+useEffect(() => {
+    return () => {
+        detachConnection()  // Only disconnect, keep ID
+    }
+}, [sessionId])
+
+// ✅ Correct: Explicit destroy operation handled separately
+const handleCloseTerminal = () => {
+    closeConnection()
+    destroyTerminalSession()  // Clear destroy intent
+}
+```
+
+Resource ownership model:
+
+| Resource Type | Lifecycle | Identifier Generation | Cleanup Behavior |
+|--------------|-----------|----------------------|------------------|
+| Terminal process | Session-scoped | First terminal creation | Detach socket, keep ID |
+| WebSocket connection | Session-scoped | Session initialization | Disconnect, keep session ID |
+| UI state (scroll position) | Component-scoped | Component mount | Full cleanup |
+| Temporary cache | Component-scoped | Component mount | Full cleanup |
+
+Quick verification:
+1. Check all `useEffect` cleanup functions, confirm they don't misuse "reset resource ID" operations
+2. Trace resource identifier generation location, confirm it's generated at the correct time
+3. Add E2E test: After page navigation and return, resource should still be available
+4. Add backend monitoring: Orphaned resource count (resources with process but no socket)
+
+---
