@@ -39,7 +39,6 @@ export function HostBadge({ displayName, host, machineId, sessionId, className, 
             role="status"
             aria-label={ariaLabel}
         >
-            <span aria-hidden="true">{t('session.item.hostPrefix')}</span>
             <span aria-hidden="true">{label}</span>
         </span>
     )
