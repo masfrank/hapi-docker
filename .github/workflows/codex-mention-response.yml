@@ -161,6 +161,10 @@ jobs:
           print(f"Validated custom Responses endpoint host={parsed.netloc} path={path}")
           PY
 
+      - name: Setup project environment
+        if: steps.check_skip.outputs.should_skip != 'true'
+        uses: ./.github/actions/setup-project-env
+
       - name: Run Codex for Mention Response
         if: steps.check_skip.outputs.should_skip != 'true'
         uses: openai/codex-action@v1

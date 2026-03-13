@@ -1,0 +1,24 @@
+name: Setup Project Environment
+description: Install bun, node and project dependencies with consistent versions
+inputs:
+  install-dependencies:
+    description: Whether to run bun install
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: '1.3.10'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Install dependencies
+      if: inputs.install-dependencies == 'true'
+      shell: bash
+      run: bun install --frozen-lockfile

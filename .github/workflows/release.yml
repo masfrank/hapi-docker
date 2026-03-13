@@ -14,12 +14,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
-            - uses: oven-sh/setup-bun@v2
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: '24'
-                  registry-url: 'https://registry.npmjs.org'
-            - run: bun install
+            - uses: ./.github/actions/setup-project-env
             - run: bun run build:single-exe:all
             - name: Prepare npm packages
               run: cd cli && bun run prepare-npm-packages

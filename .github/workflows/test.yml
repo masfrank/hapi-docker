@@ -9,8 +9,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - uses: oven-sh/setup-bun@v2
-            - run: bun install
+            - uses: ./.github/actions/setup-project-env
             - run: bun typecheck
             - name: Create integration test env
               run: |

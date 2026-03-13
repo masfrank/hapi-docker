@@ -111,6 +111,10 @@ jobs:
           print(f"Validated custom Responses endpoint host={parsed.netloc} path={path}")
           PY
 
+      - name: Setup project environment
+        if: steps.check_bot.outputs.has_bot != 'true'
+        uses: ./.github/actions/setup-project-env
+
       - name: Run Codex for Issue Auto Response
         if: steps.check_bot.outputs.has_bot != 'true'
         uses: openai/codex-action@v1

@@ -146,6 +146,9 @@ jobs:
           print(f"Validated custom Responses endpoint host={parsed.netloc} path={path}")
           PY
 
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project-env
+
       - name: Run Codex for PR Review
         id: run_codex
         if: steps.check_bot.outputs.has_review_for_current_head != 'true'

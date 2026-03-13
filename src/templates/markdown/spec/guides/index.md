@@ -24,6 +24,7 @@ These guides help you **ask the right questions before coding**.
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
 | [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md) | Catch platform-specific assumptions | Scripts, paths, commands |
+| [CI/CD Thinking Guide](./ci-cd-thinking-guide.md) | Ensure CI environment consistency and test executability | Modifying workflows or test files |
 
 ---
 
@@ -60,6 +61,18 @@ These guides help you **ask the right questions before coding**.
 - [ ] **Using platform-specific CLI tools** (ps, kill, pgrep, etc.)
 
 → Read [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md)
+
+### When to Think About CI/CD Issues
+
+- [ ] Adding or modifying GitHub Actions workflows
+- [ ] Modifying test files (`.test.ts` / `.spec.ts`)
+- [ ] Upgrading runtime versions (bun/node/python)
+- [ ] **Adding new project dependencies**
+- [ ] **Modifying build or test commands**
+- [ ] **AI reviewer reports "cannot run tests"**
+- [ ] **Local passes but CI fails (or vice versa)**
+
+→ Read [CI/CD Thinking Guide](./ci-cd-thinking-guide.md)
 
 ---
 

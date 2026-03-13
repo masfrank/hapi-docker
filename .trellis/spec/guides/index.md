@@ -24,6 +24,7 @@
 | [代码复用思维指南](./code-reuse-thinking-guide.md) | 识别重复模式并减少冗余 | 发现重复实现时 |
 | [跨层思维指南](./cross-layer-thinking-guide.md) | 在实现前理清跨层数据流 | 功能跨越多层时 |
 | [跨平台思维指南](./cross-platform-thinking-guide.md) | 避免平台特定假设 | 涉及脚本、路径、命令时 |
+| [CI/CD 思维指南](./ci-cd-thinking-guide.md) | 确保 CI 环境一致性和测试可执行性 | 修改 workflow 或测试文件时 |
 
 ---
 
@@ -60,6 +61,18 @@
 - [ ] **依赖平台特定 CLI 工具**
 
 → 阅读 [跨平台思维指南](./cross-platform-thinking-guide.md)
+
+### 何时考虑 CI/CD 问题
+
+- [ ] 添加或修改 GitHub Actions workflow
+- [ ] 修改测试文件（`.test.ts` / `.spec.ts`）
+- [ ] 升级运行时版本（bun/node/python）
+- [ ] **添加新的项目依赖**
+- [ ] **修改构建或测试命令**
+- [ ] **AI reviewer 报告"无法运行测试"**
+- [ ] **本地通过但 CI 失败（或反之）**
+
+→ 阅读 [CI/CD 思维指南](./ci-cd-thinking-guide.md)
 
 ---
 

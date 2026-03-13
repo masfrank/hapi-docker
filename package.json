@@ -2,6 +2,10 @@
     "name": "zhushen",
     "private": true,
     "workspaces": ["cli", "shared", "hub", "web", "website", "docs"],
+    "engines": {
+        "node": ">=24.0.0",
+        "bun": ">=1.3.10"
+    },
     "scripts": {
         "build:site": "bun run --cwd website build && bun run --cwd docs docs:build && cp -r docs/.vitepress/dist website/dist/public/docs",
         "dev": "concurrently \"bun run dev:hub\" \"bun run dev:web\" --kill-others-on-exit",

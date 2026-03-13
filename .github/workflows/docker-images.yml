@@ -50,10 +50,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project-env
         with:
-          bun-version: '1.3.10'
+          install-dependencies: 'false'
 
       - name: Lockfile precheck (frozen)
         run: |
@@ -83,10 +83,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project-env
         with:
-          bun-version: '1.3.10'
+          install-dependencies: 'false'
 
       - name: Lockfile precheck (frozen)
         run: |
@@ -139,10 +139,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project-env
         with:
-          bun-version: '1.3.10'
+          install-dependencies: 'false'
 
       - name: Lockfile precheck (frozen)
         run: |
@@ -192,10 +192,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup project environment
+        uses: ./.github/actions/setup-project-env
         with:
-          bun-version: '1.3.10'
+          install-dependencies: 'false'
 
       - name: Lockfile precheck (frozen)
         run: |
