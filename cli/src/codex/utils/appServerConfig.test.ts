@@ -66,7 +66,7 @@ describe('appServerConfig', () => {
 
     it('passes model reasoning effort via thread config', () => {
         const params = buildThreadStartParams({
-            mode: { permissionMode: 'default', modelReasoningEffort: 'xhigh' },
+            mode: { permissionMode: 'default', modelReasoningEffort: 'xhigh', collaborationMode: 'default' },
             mcpServers
         });
 
