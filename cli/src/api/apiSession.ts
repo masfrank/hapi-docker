@@ -393,7 +393,7 @@ export class ApiSessionClient extends EventEmitter {
         })
     }
 
-    sendCodexMessage(body: unknown): void {
+    sendAgentMessage(body: unknown): void {
         const content = {
             role: 'agent',
             content: {
