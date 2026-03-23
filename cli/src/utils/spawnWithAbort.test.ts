@@ -1,5 +1,4 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 // Create a fake child process emitter for each test
@@ -45,69 +44,121 @@ function makeOptions(overrides: Partial<Parameters<typeof spawnWithAbort>[0]> = 
     };
 }
 
+async function waitForExitListener() {
+    await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
+}
+
 describe('spawnWithAbort', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    it('resolves when process exits with code 0', async () => {
-        const { opts } = makeOptions();
-        const p = spawnWithAbort(opts);
-        // Wait for event listeners to be set up
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        childEmitter.emit('exit', 0, null);
-        await expect(p).resolves.toBeUndefined();
+    describe('normal exit (no abort)', () => {
+        it('resolves when process exits with code 0', async () => {
+            const { opts } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            childEmitter.emit('exit', 0, null);
+            await expect(p).resolves.toBeUndefined();
+        });
+
+        it('rejects when process exits with non-zero code', async () => {
+            const { opts } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            childEmitter.emit('exit', 1, null);
+            await expect(p).rejects.toThrow('Process exited with code: 1');
+        });
+
+        it('rejects when process is terminated by signal', async () => {
+            const { opts } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            childEmitter.emit('exit', null, 'SIGKILL');
+            await expect(p).rejects.toThrow('Process terminated with signal: SIGKILL');
+        });
+
+        it('resolves when process exits with null code and null signal', async () => {
+            const { opts } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            childEmitter.emit('exit', null, null);
+            await expect(p).resolves.toBeUndefined();
+        });
     });
 
-    it('rejects when process exits with non-zero code without abort', async () => {
-        const { opts } = makeOptions();
-        const p = spawnWithAbort(opts);
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        childEmitter.emit('exit', 1, null);
-        await expect(p).rejects.toThrow('Process exited with code: 1');
+    describe('abort handling', () => {
+        it('resolves when process exits with code 1 after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('exit', 1, null);
+            await expect(p).resolves.toBeUndefined();
+        });
+
+        it('resolves when process exits with any non-zero code after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('exit', 2, null);
+            await expect(p).resolves.toBeUndefined();
+        });
+
+        it('resolves when process exits with known abort code (130) after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('exit', 130, null);
+            await expect(p).resolves.toBeUndefined();
+        });
+
+        it('resolves when process exits with SIGTERM after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('exit', null, 'SIGTERM');
+            await expect(p).resolves.toBeUndefined();
+        });
+
+        it('resolves when process exits with unexpected signal after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('exit', null, 'SIGKILL');
+            await expect(p).resolves.toBeUndefined();
+        });
+
+        it('resolves when process exits with code 0 after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('exit', 0, null);
+            await expect(p).resolves.toBeUndefined();
+        });
     });
 
-    it('resolves when process exits with code 1 after abort', async () => {
-        const { opts, controller } = makeOptions();
-        const p = spawnWithAbort(opts);
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        controller.abort();
-        childEmitter.emit('exit', 1, null);
-        await expect(p).resolves.toBeUndefined();
-    });
+    describe('spawn error', () => {
+        it('rejects with install hint when spawn fails', async () => {
+            const { opts } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            childEmitter.emit('error', new Error('ENOENT'));
+            await expect(p).rejects.toThrow('Failed to spawn echo: ENOENT. Is echo installed and on PATH?');
+        });
 
-    it('resolves when process exits with any non-zero code after abort', async () => {
-        const { opts, controller } = makeOptions();
-        const p = spawnWithAbort(opts);
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        controller.abort();
-        childEmitter.emit('exit', 2, null);
-        await expect(p).resolves.toBeUndefined();
-    });
-
-    it('resolves when process exits with known abort code (130) after abort', async () => {
-        const { opts, controller } = makeOptions();
-        const p = spawnWithAbort(opts);
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        controller.abort();
-        childEmitter.emit('exit', 130, null);
-        await expect(p).resolves.toBeUndefined();
-    });
-
-    it('resolves when process exits with SIGTERM after abort', async () => {
-        const { opts, controller } = makeOptions();
-        const p = spawnWithAbort(opts);
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        controller.abort();
-        childEmitter.emit('exit', null, 'SIGTERM');
-        await expect(p).resolves.toBeUndefined();
-    });
-
-    it('rejects when process is terminated by signal without abort', async () => {
-        const { opts } = makeOptions();
-        const p = spawnWithAbort(opts);
-        await vi.waitFor(() => expect(childEmitter.listenerCount('exit')).toBe(1));
-        childEmitter.emit('exit', null, 'SIGKILL');
-        await expect(p).rejects.toThrow('Process terminated with signal: SIGKILL');
+        it('resolves when spawn error occurs after abort', async () => {
+            const { opts, controller } = makeOptions();
+            const p = spawnWithAbort(opts);
+            await waitForExitListener();
+            controller.abort();
+            childEmitter.emit('error', new Error('ENOENT'));
+            await expect(p).resolves.toBeUndefined();
+        });
     });
 });
