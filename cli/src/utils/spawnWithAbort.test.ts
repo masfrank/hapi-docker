@@ -1,11 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
+import type { ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 
 // Create a fake child process emitter for each test
 let childEmitter: EventEmitter & { exitCode: number | null; killed: boolean; pid: number };
 
-vi.mock('child_process', () => ({
+vi.mock('node:child_process', () => ({
     spawn: vi.fn(() => {
         childEmitter = Object.assign(new EventEmitter(), {
             exitCode: null,
