@@ -35,6 +35,24 @@ import { cleanupUploadDir } from '../modules/common/handlers/uploads'
 import { TerminalManager } from '@/terminal/TerminalManager'
 import { applyVersionedAck } from './versionedUpdate'
 
+/**
+ * Returns true if a JSONL message should be classified as a user-role message
+ * (i.e., text typed by a real human) rather than an agent-role message.
+ *
+ * System-injected user messages (e.g. <task-notification>, <system-reminder>)
+ * are written to the JSONL log with type:'user' but without userType:'external'.
+ * Without this check they would appear as user messages in the web UI.
+ */
+export function isExternalUserMessage(body: RawJSONLines): boolean {
+    return (
+        body.type === 'user' &&
+        typeof body.message.content === 'string' &&
+        body.userType === 'external' &&
+        body.isSidechain !== true &&
+        body.isMeta !== true
+    )
+}
+
 export class ApiSessionClient extends EventEmitter {
     private readonly token: string
     readonly sessionId: string
@@ -330,7 +348,7 @@ export class ApiSessionClient extends EventEmitter {
     sendClaudeSessionMessage(body: RawJSONLines): void {
         let content: MessageContent
 
-        if (body.type === 'user' && typeof body.message.content === 'string' && body.isSidechain !== true && body.isMeta !== true) {
+        if (isExternalUserMessage(body)) {
             content = {
                 role: 'user',
                 content: {
