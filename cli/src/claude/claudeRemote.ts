@@ -204,6 +204,15 @@ export async function claudeRemote(opts: {
                     `${debugPrefix} nextMessage resolved fetchId=${fetchId} elapsedMs=${Date.now() - startedAt} ` +
                     `messageLength=${next.message.length} permissionMode=${next.mode.permissionMode}`
                 );
+            } catch (e) {
+                inputEnded = true;
+                if (e instanceof AbortError) {
+                    messages.end();
+                    logger.debug(`${debugPrefix} nextMessage aborted fetchId=${fetchId}`);
+                    return;
+                }
+                messages.setError(e instanceof Error ? e : new Error(String(e)));
+                logger.debug(`${debugPrefix} nextMessage error fetchId=${fetchId}`, e);
             } finally {
                 nextMessageFetchInFlight = false;
                 logger.debug(`${debugPrefix} scheduleNextMessage done fetchId=${fetchId}`);
