@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { isExternalUserMessage } from './apiSession'
 
 describe('isExternalUserMessage', () => {
@@ -14,11 +12,6 @@ describe('isExternalUserMessage', () => {
 
     it('returns true for a real user text message', () => {
         expect(isExternalUserMessage(baseUserMsg)).toBe(true)
-    })
-
-    it('returns false when userType is missing (system-injected messages like <task-notification>)', () => {
-        const { userType: _, ...noUserType } = baseUserMsg
-        expect(isExternalUserMessage(noUserType as never)).toBe(false)
     })
 
     it('returns false when isMeta is true (skill injections)', () => {
@@ -47,44 +40,59 @@ describe('isExternalUserMessage', () => {
             } as never)
         ).toBe(false)
     })
-})
 
-/**
- * Validates that all user messages with string content in the JSONL fixtures
- * carry userType:'external' — the invariant isExternalUserMessage() depends on.
- *
- * If this test fails it means Claude Code changed how it writes session logs
- * and the guard needs to be revisited.
- */
-describe('JSONL fixture invariant: real user messages have userType:"external"', () => {
-    const fixtureDir = join(__dirname, '../claude/utils/__fixtures__')
-    const fixtures = readdirSync(fixtureDir).filter(f => f.endsWith('.jsonl'))
-
-    it('fixture files exist', () => {
-        expect(fixtures.length).toBeGreaterThan(0)
+    // System-injected content detection
+    it('returns false for <task-notification> messages', () => {
+        expect(
+            isExternalUserMessage({
+                ...baseUserMsg,
+                message: { role: 'user', content: '<task-notification>\n<task-id>abc123</task-id>\n</task-notification>' },
+            })
+        ).toBe(false)
     })
 
-    for (const file of fixtures) {
-        it(`${file}: every type:user string-content message has userType:'external'`, () => {
-            const lines = readFileSync(join(fixtureDir, file), 'utf-8')
-                .split('\n')
-                .filter(Boolean)
+    it('returns false for <command-name> messages', () => {
+        expect(
+            isExternalUserMessage({
+                ...baseUserMsg,
+                message: { role: 'user', content: '<command-name>/clear</command-name>' },
+            })
+        ).toBe(false)
+    })
 
-            for (const line of lines) {
-                const msg = JSON.parse(line)
-                if (
-                    msg.type === 'user' &&
-                    msg.isMeta !== true &&
-                    msg.isSidechain !== true &&
-                    typeof msg.message?.content === 'string'
-                ) {
-                    expect(
-                        msg.userType,
-                        `message uuid=${msg.uuid} in ${file} is a real user string message but lacks userType:'external'`
-                    ).toBe('external')
-                }
-            }
-        })
-    }
+    it('returns false for <local-command-caveat> messages', () => {
+        expect(
+            isExternalUserMessage({
+                ...baseUserMsg,
+                message: { role: 'user', content: '<local-command-caveat>Caveat: ...</local-command-caveat>' },
+            })
+        ).toBe(false)
+    })
+
+    it('returns false for <system-reminder> messages', () => {
+        expect(
+            isExternalUserMessage({
+                ...baseUserMsg,
+                message: { role: 'user', content: '<system-reminder>\nToday is 2026.\n</system-reminder>' },
+            })
+        ).toBe(false)
+    })
+
+    it('returns true for user text that mentions XML-like strings but is not injected', () => {
+        expect(
+            isExternalUserMessage({
+                ...baseUserMsg,
+                message: { role: 'user', content: 'How do I use the <task-notification> tag?' },
+            })
+        ).toBe(true)
+    })
+
+    it('returns false for <task-notification> with leading whitespace', () => {
+        expect(
+            isExternalUserMessage({
+                ...baseUserMsg,
+                message: { role: 'user', content: '  \n<task-notification>\n<task-id>x</task-id>\n</task-notification>' },
+            })
+        ).toBe(false)
+    })
 })
-
