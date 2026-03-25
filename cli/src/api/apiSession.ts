@@ -56,7 +56,7 @@ const SYSTEM_INJECTION_PREFIXES = [
  * genuine user messages, so the only reliable signal is the message content
  * itself: injected messages always start with a well-known XML tag.
  */
-export function isExternalUserMessage(body: RawJSONLines): boolean {
+export function isExternalUserMessage(body: RawJSONLines): body is Extract<RawJSONLines, { type: 'user' }> & { message: { content: string } } {
     if (body.type !== 'user') return false
     if (typeof body.message.content !== 'string') return false
     if (body.isSidechain === true) return false
