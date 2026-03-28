@@ -1,3 +1,4 @@
+import type { PiThinkingLevel } from '@hapi/protocol/types'
 import type {
     AttachmentMetadata,
     AuthResponse,
@@ -389,7 +390,7 @@ export class ApiClient {
         agent?: 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode' | 'pi',
         model?: string,
         modelReasoningEffort?: string,
-        piThinkingLevel?: string,
+        piThinkingLevel?: PiThinkingLevel,
         yolo?: boolean,
         sessionType?: 'simple' | 'worktree',
         worktreeName?: string,

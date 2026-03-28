@@ -1,3 +1,4 @@
+import type { PiThinkingLevel } from '@hapi/protocol/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import type { SpawnResponse } from '@/types/api'
@@ -10,7 +11,7 @@ type SpawnInput = {
     model?: string
     effort?: string
     modelReasoningEffort?: string
-    piThinkingLevel?: string
+    piThinkingLevel?: PiThinkingLevel
     yolo?: boolean
     sessionType?: 'simple' | 'worktree'
     worktreeName?: string

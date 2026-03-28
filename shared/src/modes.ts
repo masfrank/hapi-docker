@@ -23,8 +23,11 @@ export type OpencodePermissionMode = typeof OPENCODE_PERMISSION_MODES[number]
 export const CURSOR_PERMISSION_MODES = ['default', 'plan', 'ask', 'yolo'] as const
 export type CursorPermissionMode = typeof CURSOR_PERMISSION_MODES[number]
 
-export const PI_PERMISSION_MODES = ['default', 'yolo'] as const
+export const PI_PERMISSION_MODES = ['yolo'] as const
 export type PiPermissionMode = typeof PI_PERMISSION_MODES[number]
+
+export const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+export type PiThinkingLevel = typeof PI_THINKING_LEVELS[number]
 
 export const PERMISSION_MODES = [
     'default',
@@ -88,6 +91,13 @@ export const CLAUDE_MODEL_LABELS: Record<ClaudeModelPreset, string> = {
 export const CODEX_COLLABORATION_MODE_LABELS: Record<CodexCollaborationMode, string> = {
     default: 'Default',
     plan: 'Plan'
+}
+
+export const getLevelOptionLabel = (value: string): string => {
+    if (value === 'xhigh') {
+        return 'XHigh'
+    }
+    return value.slice(0, 1).toUpperCase() + value.slice(1)
 }
 
 export function isClaudeModelPreset(model: string | null | undefined): model is ClaudeModelPreset {

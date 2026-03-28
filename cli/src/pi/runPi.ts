@@ -48,7 +48,7 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
         piThinkingLevel: mode.piThinkingLevel
     }))
 
-    let currentPermissionMode: PiPermissionMode = options.permissionMode ?? 'default'
+    let currentPermissionMode = options.permissionMode
     let currentModel = options.model
     let currentThinkingLevel = options.piThinkingLevel
 
@@ -77,7 +77,9 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
     registerKillSessionHandler(apiSession.rpcHandlerManager, lifecycle.cleanupAndExit)
 
     const syncSessionMode = () => {
-        session.setPermissionMode(currentPermissionMode)
+        if (currentPermissionMode) {
+            session.setPermissionMode(currentPermissionMode)
+        }
         if (currentThinkingLevel) {
             session.setThinkingLevel(currentThinkingLevel)
         }

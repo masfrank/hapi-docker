@@ -1,8 +1,12 @@
+import { getLevelOptionLabel, PI_THINKING_LEVELS } from '@hapi/protocol'
+import type { PiThinkingLevel } from '@hapi/protocol/types'
+
+export type { PiThinkingLevel }
+
 export type AgentType = 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode' | 'pi'
 export type SessionType = 'simple' | 'worktree'
 export type CodexReasoningEffort = 'default' | 'low' | 'medium' | 'high' | 'xhigh'
 export type ClaudeEffort = 'auto' | 'medium' | 'high' | 'max'
-export type PiThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
 export const MODEL_OPTIONS: Record<AgentType, { value: string; label: string }[]> = {
     claude: [
@@ -36,26 +40,28 @@ export const MODEL_OPTIONS: Record<AgentType, { value: string; label: string }[]
     ],
 }
 
-export const CODEX_REASONING_EFFORT_OPTIONS: { value: CodexReasoningEffort; label: string }[] = [
-    { value: 'default', label: 'Default' },
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'xhigh', label: 'XHigh' },
-]
+export const CODEX_REASONING_EFFORT_OPTIONS: { value: CodexReasoningEffort; label: string }[] = ([
+    'default',
+    'low',
+    'medium',
+    'high',
+    'xhigh'
+] as const).map((value) => ({
+    value,
+    label: getLevelOptionLabel(value)
+}))
 
-export const CLAUDE_EFFORT_OPTIONS: { value: ClaudeEffort; label: string }[] = [
-    { value: 'auto', label: 'Auto' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'max', label: 'Max' },
-]
+export const CLAUDE_EFFORT_OPTIONS: { value: ClaudeEffort; label: string }[] = ([
+    'auto',
+    'medium',
+    'high',
+    'max'
+] as const).map((value) => ({
+    value,
+    label: getLevelOptionLabel(value)
+}))
 
-export const PI_THINKING_LEVEL_OPTIONS: { value: PiThinkingLevel; label: string }[] = [
-    { value: 'off', label: 'Off' },
-    { value: 'minimal', label: 'Minimal' },
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'xhigh', label: 'XHigh' },
-]
+export const PI_THINKING_LEVEL_OPTIONS: { value: PiThinkingLevel; label: string }[] = PI_THINKING_LEVELS.map((value) => ({
+    value,
+    label: getLevelOptionLabel(value)
+}))

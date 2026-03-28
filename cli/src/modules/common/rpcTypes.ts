@@ -1,3 +1,5 @@
+import type { PiThinkingLevel } from '@hapi/protocol/types'
+
 export interface SpawnSessionOptions {
     machineId?: string
     directory: string
@@ -8,7 +10,7 @@ export interface SpawnSessionOptions {
     model?: string
     effort?: string
     modelReasoningEffort?: string
-    piThinkingLevel?: string
+    piThinkingLevel?: PiThinkingLevel
     yolo?: boolean
     token?: string
     sessionType?: 'simple' | 'worktree'

@@ -1,8 +1,9 @@
 import { z } from 'zod'
-import { CODEX_COLLABORATION_MODES, PERMISSION_MODES } from './modes'
+import { CODEX_COLLABORATION_MODES, PERMISSION_MODES, PI_THINKING_LEVELS } from './modes'
 
 export const PermissionModeSchema = z.enum(PERMISSION_MODES)
 export const CodexCollaborationModeSchema = z.enum(CODEX_COLLABORATION_MODES)
+export const PiThinkingLevelSchema = z.enum(PI_THINKING_LEVELS)
 
 const MetadataSummarySchema = z.object({
     text: z.string(),

@@ -28,6 +28,7 @@ export type {
     GeminiPermissionMode,
     OpencodePermissionMode,
     PiPermissionMode,
+    PiThinkingLevel,
     ClaudeModelPreset,
     PermissionMode,
     PermissionModeOption,

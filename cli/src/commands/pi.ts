@@ -1,4 +1,5 @@
 import chalk from 'chalk'
+import { PI_THINKING_LEVELS } from '@hapi/protocol'
 import { authAndSetupMachineIfNeeded } from '@/ui/auth'
 import { initializeToken } from '@/ui/tokenInit'
 import { maybeAutoStartServer } from '@/utils/autoStartServer'
@@ -6,11 +7,10 @@ import type { CommandDefinition } from './types'
 import type { PiPermissionMode, PiThinkingLevel } from '@/pi/piTypes'
 
 const parseThinkingLevel = (value: string): PiThinkingLevel => {
-    const valid: PiThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
-    if (valid.includes(value as PiThinkingLevel)) {
+    if (PI_THINKING_LEVELS.includes(value as PiThinkingLevel)) {
         return value as PiThinkingLevel
     }
-    throw new Error(`Invalid thinking level: ${value}. Valid values: ${valid.join(', ')}`)
+    throw new Error(`Invalid thinking level: ${value}. Valid values: ${PI_THINKING_LEVELS.join(', ')}`)
 }
 
 export const piCommand: CommandDefinition = {

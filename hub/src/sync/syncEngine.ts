@@ -7,7 +7,7 @@
  * - No E2E encryption; data is stored as JSON in SQLite
  */
 
-import type { CodexCollaborationMode, DecryptedMessage, PermissionMode, Session, SyncEvent } from '@hapi/protocol/types'
+import type { CodexCollaborationMode, DecryptedMessage, PermissionMode, PiThinkingLevel, Session, SyncEvent } from '@hapi/protocol/types'
 import type { Server } from 'socket.io'
 import type { Store } from '../store'
 import type { RpcRegistry } from '../socket/rpcRegistry'
@@ -321,7 +321,7 @@ export class SyncEngine {
         agent: 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode' | 'pi' = 'claude',
         model?: string,
         modelReasoningEffort?: string,
-        piThinkingLevel?: string,
+        piThinkingLevel?: PiThinkingLevel,
         yolo?: boolean,
         sessionType?: 'simple' | 'worktree',
         worktreeName?: string,

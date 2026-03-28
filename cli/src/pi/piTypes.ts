@@ -1,11 +1,9 @@
-import type { ThinkingLevel } from '@mariozechner/pi-agent-core'
+import type { PiPermissionMode, PiThinkingLevel } from '@hapi/protocol/types'
 
-export type { ThinkingLevel as PiThinkingLevel }
-
-export type PiPermissionMode = 'default' | 'yolo'
+export type { PiPermissionMode, PiThinkingLevel }
 
 export type PiEnhancedMode = {
-    permissionMode: PiPermissionMode
+    permissionMode?: PiPermissionMode
     model?: string
-    piThinkingLevel?: ThinkingLevel
+    piThinkingLevel?: PiThinkingLevel
 }
