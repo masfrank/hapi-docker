@@ -14,7 +14,7 @@ export function AgentSelector(props: {
                 {t('newSession.agent')}
             </label>
             <div className="flex flex-wrap gap-x-3 gap-y-2">
-                {(['claude', 'codex', 'cursor', 'gemini', 'opencode'] as const).map((agentType) => (
+                {(['claude', 'codex', 'cursor', 'gemini', 'opencode', 'pi'] as const).map((agentType) => (
                     <label
                         key={agentType}
                         className="flex items-center gap-1.5 cursor-pointer"
@@ -28,7 +28,7 @@ export function AgentSelector(props: {
                             disabled={props.isDisabled}
                             className="accent-[var(--app-link)]"
                         />
-                        <span className="text-sm capitalize">{agentType}</span>
+                        <span className="text-sm capitalize">{agentType === 'pi' ? 'PI' : agentType}</span>
                     </label>
                 ))}
             </div>

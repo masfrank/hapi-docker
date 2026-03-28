@@ -10,6 +10,10 @@ export function isCursorFlavor(flavor?: string | null): boolean {
     return flavor === 'cursor'
 }
 
+export function isPiFlavor(flavor?: string | null): boolean {
+    return flavor === 'pi'
+}
+
 export function isKnownFlavor(flavor?: string | null): boolean {
-    return isClaudeFlavor(flavor) || isCodexFamilyFlavor(flavor) || isCursorFlavor(flavor)
+    return isClaudeFlavor(flavor) || isCodexFamilyFlavor(flavor) || isCursorFlavor(flavor) || isPiFlavor(flavor)
 }

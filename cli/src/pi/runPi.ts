@@ -16,7 +16,7 @@ export type RunPiOptions = {
     permissionMode?: PiPermissionMode
     resumeSessionId?: string
     model?: string
-    thinkingLevel?: PiThinkingLevel
+    piThinkingLevel?: PiThinkingLevel
 }
 
 export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
@@ -45,12 +45,12 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
     const messageQueue = new MessageQueue2<PiEnhancedMode>((mode) => hashObject({
         permissionMode: mode.permissionMode,
         model: mode.model,
-        thinkingLevel: mode.thinkingLevel
+        piThinkingLevel: mode.piThinkingLevel
     }))
 
     let currentPermissionMode: PiPermissionMode = options.permissionMode ?? 'default'
     let currentModel = options.model
-    let currentThinkingLevel = options.thinkingLevel
+    let currentThinkingLevel = options.piThinkingLevel
 
     const session = new PiSession({
         api,
@@ -63,7 +63,7 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
         mode: startingMode,
         startedBy,
         permissionMode: currentPermissionMode,
-        thinkingLevel: currentThinkingLevel
+        piThinkingLevel: currentThinkingLevel
     })
 
     const launcher = new PiLauncher(session)
@@ -81,7 +81,7 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
         if (currentThinkingLevel) {
             session.setThinkingLevel(currentThinkingLevel)
         }
-        logger.debug(`[pi] Synced session modes: permissionMode=${currentPermissionMode}, thinkingLevel=${currentThinkingLevel}`)
+        logger.debug(`[pi] Synced session modes: permissionMode=${currentPermissionMode}, piThinkingLevel=${currentThinkingLevel}`)
     }
 
     apiSession.rpcHandlerManager.registerHandler('abort', async () => {
@@ -92,7 +92,7 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
         const enhancedMode: PiEnhancedMode = {
             permissionMode: currentPermissionMode,
             model: currentModel,
-            thinkingLevel: currentThinkingLevel
+            piThinkingLevel: currentThinkingLevel
         }
         const formattedText = formatMessageWithAttachments(
             message.content.text,
@@ -108,7 +108,7 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
         const config = payload as {
             permissionMode?: PiPermissionMode
             model?: string
-            thinkingLevel?: PiThinkingLevel
+            piThinkingLevel?: PiThinkingLevel
         }
 
         if (config.permissionMode !== undefined) {
@@ -117,8 +117,8 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
         if (config.model !== undefined) {
             currentModel = config.model
         }
-        if (config.thinkingLevel !== undefined) {
-            currentThinkingLevel = config.thinkingLevel
+        if (config.piThinkingLevel !== undefined) {
+            currentThinkingLevel = config.piThinkingLevel
         }
 
         syncSessionMode()
@@ -127,7 +127,7 @@ export const runPi = async (options: RunPiOptions = {}): Promise<void> => {
             applied: {
                 permissionMode: currentPermissionMode,
                 model: currentModel,
-                thinkingLevel: currentThinkingLevel
+                piThinkingLevel: currentThinkingLevel
             }
         }
     })

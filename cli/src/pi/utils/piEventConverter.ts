@@ -25,18 +25,7 @@ export class PiEventConverter {
                 return this.handleMessageUpdate(event)
 
             case 'message_end':
-                if ('role' in event.message && event.message.role === 'assistant') {
-                    const text = this.textBuffer
-                    this.textBuffer = ''
-                    if (text) {
-                        return [{
-                            type: 'message',
-                            message: text,
-                            id: randomUUID()
-                        }]
-                    }
-                }
-                return []
+                return this.handleMessageEnd(event)
 
             case 'tool_execution_start':
                 return [{
@@ -51,7 +40,7 @@ export class PiEventConverter {
                 return [{
                     type: 'tool-call-result',
                     callId: event.toolCallId,
-                    output: this.extractToolOutput(event.result),
+                    output: event.result,
                     is_error: event.isError,
                     id: randomUUID()
                 }]
@@ -77,11 +66,7 @@ export class PiEventConverter {
         switch (delta.type) {
             case 'text_delta':
                 this.textBuffer += delta.delta ?? ''
-                return [{
-                    type: 'message',
-                    message: this.textBuffer,
-                    id: randomUUID()
-                }]
+                return []
 
             case 'thinking_delta':
                 this.thinkingBuffer += delta.delta ?? ''
@@ -127,18 +112,21 @@ export class PiEventConverter {
         }
     }
 
-    private extractToolOutput(result: unknown): unknown {
-        if (!result || typeof result !== 'object') return result
-        const r = result as { content?: unknown[] }
-        if (Array.isArray(r.content)) {
-            return r.content
-                .filter((c): c is { type: 'text'; text: string } =>
-                    typeof c === 'object' && c !== null && (c as { type?: string }).type === 'text'
-                )
-                .map(c => c.text)
-                .join('\n')
+    private handleMessageEnd(event: { message: unknown }): HapiAgentMessage[] {
+        const message = event.message as { role?: string } | null
+        if (message?.role !== 'assistant') {
+            return []
         }
-        return result
+        const text = this.textBuffer
+        this.textBuffer = ''
+        if (!text) {
+            return []
+        }
+        return [{
+            type: 'message',
+            message: text,
+            id: randomUUID()
+        }]
     }
 
     reset(): void {

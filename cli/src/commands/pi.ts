@@ -24,7 +24,7 @@ export const piCommand: CommandDefinition = {
                 permissionMode?: PiPermissionMode
                 resumeSessionId?: string
                 model?: string
-                thinkingLevel?: PiThinkingLevel
+                piThinkingLevel?: PiThinkingLevel
             } = {}
 
             for (let i = 0; i < commandArgs.length; i++) {
@@ -66,7 +66,7 @@ export const piCommand: CommandDefinition = {
                     if (!level) {
                         throw new Error('Missing --thinking-level value')
                     }
-                    options.thinkingLevel = parseThinkingLevel(level)
+                    options.piThinkingLevel = parseThinkingLevel(level)
                 }
             }
 

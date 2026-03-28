@@ -235,6 +235,7 @@ describe('session model', () => {
                 _agent: string,
                 model?: string,
                 _modelReasoningEffort?: string,
+                _piThinkingLevel?: string,
                 _yolo?: boolean,
                 _sessionType?: string,
                 _worktreeName?: string,
@@ -295,6 +296,7 @@ describe('session model', () => {
                 _agent: string,
                 _model?: string,
                 _modelReasoningEffort?: string,
+                _piThinkingLevel?: string,
                 _yolo?: boolean,
                 _sessionType?: 'simple' | 'worktree',
                 _worktreeName?: string,
@@ -309,6 +311,67 @@ describe('session model', () => {
 
             expect(result).toEqual({ type: 'success', sessionId: session.id })
             expect(capturedResumeSessionId).toBe('claude-session-1')
+        } finally {
+            engine.stop()
+        }
+    })
+
+    it('passes resume session ID to rpc gateway when resuming pi session', async () => {
+        const store = new Store(':memory:')
+        const engine = new SyncEngine(
+            store,
+            {} as never,
+            new RpcRegistry(),
+            { broadcast() {} } as never
+        )
+
+        try {
+            const session = engine.getOrCreateSession(
+                'session-pi-resume',
+                {
+                    path: '/tmp/project',
+                    host: 'localhost',
+                    machineId: 'machine-1',
+                    flavor: 'pi',
+                    piSessionId: 'pi-session-1',
+                    piSessionPath: '/tmp/project/.pi/session.jsonl'
+                },
+                null,
+                'default'
+            )
+            engine.getOrCreateMachine(
+                'machine-1',
+                { host: 'localhost', platform: 'linux', happyCliVersion: '0.1.0' },
+                null,
+                'default'
+            )
+            engine.handleMachineAlive({ machineId: 'machine-1', time: Date.now() })
+
+            let capturedAgent: string | undefined
+            let capturedResumeSessionId: string | undefined
+            ;(engine as any).rpcGateway.spawnSession = async (
+                _machineId: string,
+                _directory: string,
+                agent: string,
+                _model?: string,
+                _modelReasoningEffort?: string,
+                _piThinkingLevel?: string,
+                _yolo?: boolean,
+                _sessionType?: 'simple' | 'worktree',
+                _worktreeName?: string,
+                resumeSessionId?: string
+            ) => {
+                capturedAgent = agent
+                capturedResumeSessionId = resumeSessionId
+                return { type: 'success', sessionId: session.id }
+            }
+            ;(engine as any).waitForSessionActive = async () => true
+
+            const result = await engine.resumeSession(session.id, 'default')
+
+            expect(result).toEqual({ type: 'success', sessionId: session.id })
+            expect(capturedAgent).toBe('pi')
+            expect(capturedResumeSessionId).toBe('/tmp/project/.pi/session.jsonl')
         } finally {
             engine.stop()
         }

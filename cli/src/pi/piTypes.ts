@@ -7,5 +7,5 @@ export type PiPermissionMode = 'default' | 'yolo'
 export type PiEnhancedMode = {
     permissionMode: PiPermissionMode
     model?: string
-    thinkingLevel?: ThinkingLevel
+    piThinkingLevel?: ThinkingLevel
 }

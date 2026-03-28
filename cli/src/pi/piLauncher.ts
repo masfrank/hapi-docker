@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import {
     createAgentSession,
+    SessionManager,
     type AgentSession,
     type AgentSessionEvent
 } from '@mariozechner/pi-coding-agent'
@@ -16,6 +18,20 @@ type QueuedMessage = {
     hash: string
 }
 
+const resolveSessionManager = (cwd: string, sessionPath: string | null): SessionManager => {
+    if (!sessionPath) {
+        return SessionManager.create(cwd)
+    }
+    if (!existsSync(sessionPath)) {
+        throw new Error(`Pi session file not found: ${sessionPath}`)
+    }
+    return SessionManager.open(sessionPath)
+}
+
+const getSessionPath = (piSession: AgentSession): string | null => {
+    return piSession.sessionManager.getSessionFile() ?? null
+}
+
 export class PiLauncher {
     private piSession: AgentSession | null = null
     private readonly eventConverter = new PiEventConverter()
@@ -28,14 +44,10 @@ export class PiLauncher {
     constructor(private readonly session: PiSession) {}
 
     async run(): Promise<void> {
-        const { session: piSession } = await createAgentSession({
-            cwd: this.session.path
-        })
+        const piSession = await this.createPiSession()
         this.piSession = piSession
-
         this.unsubscribe = piSession.subscribe((event) => this.handlePiEvent(event))
-
-        this.session.onSessionFound(piSession.sessionId)
+        this.session.setSessionInfo(piSession.sessionId, getSessionPath(piSession))
         this.session.sendSessionEvent({ type: 'ready' })
 
         while (!this.shouldExit) {
@@ -56,6 +68,15 @@ export class PiLauncher {
 
         this.unsubscribe?.()
         this.piSession?.dispose()
+    }
+
+    private async createPiSession(): Promise<AgentSession> {
+        const sessionManager = resolveSessionManager(this.session.path, this.session.sessionId)
+        const { session } = await createAgentSession({
+            cwd: this.session.path,
+            sessionManager
+        })
+        return session
     }
 
     private async processMessage(batch: QueuedMessage): Promise<void> {
@@ -84,9 +105,9 @@ export class PiLauncher {
     private async applyModeChanges(mode: PiEnhancedMode): Promise<void> {
         if (!this.piSession) return
 
-        if (mode.thinkingLevel && mode.thinkingLevel !== this.currentThinkingLevel) {
-            this.piSession.setThinkingLevel(mode.thinkingLevel)
-            this.currentThinkingLevel = mode.thinkingLevel
+        if (mode.piThinkingLevel && mode.piThinkingLevel !== this.currentThinkingLevel) {
+            this.piSession.setThinkingLevel(mode.piThinkingLevel)
+            this.currentThinkingLevel = mode.piThinkingLevel
         }
 
         if (mode.model && mode.model !== this.currentModel) {

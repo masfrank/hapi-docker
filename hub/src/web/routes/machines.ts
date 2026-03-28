@@ -6,10 +6,11 @@ import { requireMachine } from './guards'
 
 const spawnBodySchema = z.object({
     directory: z.string().min(1),
-    agent: z.enum(['claude', 'codex', 'cursor', 'gemini', 'opencode']).optional(),
+    agent: z.enum(['claude', 'codex', 'cursor', 'gemini', 'opencode', 'pi']).optional(),
     model: z.string().optional(),
     effort: z.string().optional(),
     modelReasoningEffort: z.string().optional(),
+    piThinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional(),
     yolo: z.boolean().optional(),
     sessionType: z.enum(['simple', 'worktree']).optional(),
     worktreeName: z.string().optional()
@@ -57,6 +58,7 @@ export function createMachinesRoutes(getSyncEngine: () => SyncEngine | null): Ho
             parsed.data.agent,
             parsed.data.model,
             parsed.data.modelReasoningEffort,
+            parsed.data.piThinkingLevel,
             parsed.data.yolo,
             parsed.data.sessionType,
             parsed.data.worktreeName,

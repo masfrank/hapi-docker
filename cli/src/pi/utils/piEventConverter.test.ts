@@ -27,7 +27,7 @@ describe('PiEventConverter', () => {
                 type: 'message_update',
                 assistantMessageEvent: { type: 'text_delta', delta: 'world' }
             } as never)
-            expect(nextResult[0]?.message).toBe('world')
+            expect(nextResult).toEqual([])
         })
     })
 
@@ -82,21 +82,22 @@ describe('PiEventConverter', () => {
             })
         })
 
-        it('extracts text from content array in tool result', () => {
+        it('preserves structured content arrays in tool result', () => {
+            const output = {
+                content: [
+                    { type: 'text', text: 'line 1' },
+                    { type: 'image', data: 'kept' },
+                    { type: 'text', text: 'line 2' }
+                ]
+            }
             const result = converter.convert({
                 type: 'tool_execution_end',
                 toolCallId: 'call-789',
-                result: {
-                    content: [
-                        { type: 'text', text: 'line 1' },
-                        { type: 'image', data: 'ignored' },
-                        { type: 'text', text: 'line 2' }
-                    ]
-                },
+                result: output,
                 isError: false
             } as never)
 
-            expect(result[0]?.output).toBe('line 1\nline 2')
+            expect(result[0]?.output).toEqual(output)
         })
 
         it('returns raw result when content is not an array', () => {
@@ -112,26 +113,20 @@ describe('PiEventConverter', () => {
     })
 
     describe('message_update text handling', () => {
-        it('accumulates text_delta into message buffer', () => {
+        it('buffers text_delta without emitting partial messages', () => {
             const result1 = converter.convert({
                 type: 'message_update',
                 assistantMessageEvent: { type: 'text_delta', delta: 'Hello' }
             } as never)
 
-            expect(result1[0]).toMatchObject({
-                type: 'message',
-                message: 'Hello'
-            })
+            expect(result1).toEqual([])
 
             const result2 = converter.convert({
                 type: 'message_update',
                 assistantMessageEvent: { type: 'text_delta', delta: ' World' }
             } as never)
 
-            expect(result2[0]).toMatchObject({
-                type: 'message',
-                message: 'Hello World'
-            })
+            expect(result2).toEqual([])
         })
 
         it('handles undefined delta gracefully', () => {
@@ -140,7 +135,7 @@ describe('PiEventConverter', () => {
                 assistantMessageEvent: { type: 'text_delta' }
             } as never)
 
-            expect(result[0]?.message).toBe('')
+            expect(result).toEqual([])
         })
     })
 
@@ -255,9 +250,14 @@ describe('PiEventConverter', () => {
                 message: { role: 'assistant' }
             } as never)
 
-            const result = converter.convert({
+            converter.convert({
                 type: 'message_update',
                 assistantMessageEvent: { type: 'text_delta', delta: 'Second message' }
+            } as never)
+
+            const result = converter.convert({
+                type: 'message_end',
+                message: { role: 'assistant' }
             } as never)
 
             expect(result[0]?.message).toBe('Second message')
@@ -329,7 +329,7 @@ describe('PiEventConverter', () => {
                 type: 'message_update',
                 assistantMessageEvent: { type: 'text_delta', delta: 'new' }
             } as never)
-            expect(textResult[0]?.message).toBe('new')
+            expect(textResult).toEqual([])
 
             const thinkingResult = converter.convert({
                 type: 'message_update',

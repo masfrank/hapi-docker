@@ -9,7 +9,7 @@ import { useActiveSuggestions, type Suggestion } from '@/hooks/useActiveSuggesti
 import { useDirectorySuggestions } from '@/hooks/useDirectorySuggestions'
 import { useRecentPaths } from '@/hooks/useRecentPaths'
 import { useTranslation } from '@/lib/use-translation'
-import type { AgentType, ClaudeEffort, CodexReasoningEffort, SessionType } from './types'
+import type { AgentType, ClaudeEffort, CodexReasoningEffort, PiThinkingLevel, SessionType } from './types'
 import { ActionButtons } from './ActionButtons'
 import { AgentSelector } from './AgentSelector'
 import { DirectorySection } from './DirectorySection'
@@ -17,6 +17,7 @@ import { MachineSelector } from './MachineSelector'
 import { ModelSelector } from './ModelSelector'
 import { ClaudeEffortSelector } from './ClaudeEffortSelector'
 import { ReasoningEffortSelector } from './ReasoningEffortSelector'
+import { PiThinkingLevelSelector } from './PiThinkingLevelSelector'
 import {
     loadPreferredAgent,
     loadPreferredYoloMode,
@@ -49,6 +50,7 @@ export function NewSession(props: {
     const [model, setModel] = useState('auto')
     const [effort, setEffort] = useState<ClaudeEffort>('auto')
     const [modelReasoningEffort, setModelReasoningEffort] = useState<CodexReasoningEffort>('default')
+    const [piThinkingLevel, setPiThinkingLevel] = useState<PiThinkingLevel>('medium')
     const [yoloMode, setYoloMode] = useState(loadPreferredYoloMode)
     const [sessionType, setSessionType] = useState<SessionType>('simple')
     const [worktreeName, setWorktreeName] = useState('')
@@ -65,6 +67,8 @@ export function NewSession(props: {
     useEffect(() => {
         setModel('auto')
         setEffort('auto')
+        setModelReasoningEffort('default')
+        setPiThinkingLevel('medium')
     }, [agent])
 
     useEffect(() => {
@@ -251,6 +255,9 @@ export function NewSession(props: {
             const resolvedModelReasoningEffort = agent === 'codex' && modelReasoningEffort !== 'default'
                 ? modelReasoningEffort
                 : undefined
+            const resolvedThinkingLevel = agent === 'pi'
+                ? piThinkingLevel
+                : undefined
             const result = await spawnSession({
                 machineId,
                 directory: trimmedDirectory,
@@ -258,6 +265,7 @@ export function NewSession(props: {
                 model: resolvedModel,
                 effort: resolvedEffort,
                 modelReasoningEffort: resolvedModelReasoningEffort,
+                piThinkingLevel: resolvedThinkingLevel,
                 yolo: yoloMode,
                 sessionType,
                 worktreeName: sessionType === 'worktree' ? (worktreeName.trim() || undefined) : undefined
@@ -340,6 +348,12 @@ export function NewSession(props: {
                 value={modelReasoningEffort}
                 isDisabled={isFormDisabled}
                 onChange={setModelReasoningEffort}
+            />
+            <PiThinkingLevelSelector
+                agent={agent}
+                piThinkingLevel={piThinkingLevel}
+                isDisabled={isFormDisabled}
+                onThinkingLevelChange={setPiThinkingLevel}
             />
             <YoloToggle
                 yoloMode={yoloMode}

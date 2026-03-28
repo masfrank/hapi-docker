@@ -348,10 +348,12 @@ export async function startRunner(): Promise<void> {
               ? 'gemini'
               : agent === 'opencode'
                 ? 'opencode'
-                : 'claude';
+                : agent === 'pi'
+                  ? 'pi'
+                  : 'claude';
         const args = [agentCommand];
         if (options.resumeSessionId) {
-            if (agent === 'codex') {
+            if (agent === 'codex' || agent === 'pi') {
                 args.push('resume', options.resumeSessionId);
             } else if (agent === 'cursor') {
                 args.push('--resume', options.resumeSessionId);
@@ -368,6 +370,9 @@ export async function startRunner(): Promise<void> {
         }
         if (options.modelReasoningEffort && agent === 'codex') {
           args.push('--model-reasoning-effort', options.modelReasoningEffort);
+        }
+        if (options.piThinkingLevel && agent === 'pi') {
+          args.push('--thinking-level', options.piThinkingLevel);
         }
         if (yolo) {
           args.push('--yolo');

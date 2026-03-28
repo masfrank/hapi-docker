@@ -318,9 +318,10 @@ export class SyncEngine {
     async spawnSession(
         machineId: string,
         directory: string,
-        agent: 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode' = 'claude',
+        agent: 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode' | 'pi' = 'claude',
         model?: string,
         modelReasoningEffort?: string,
+        piThinkingLevel?: string,
         yolo?: boolean,
         sessionType?: 'simple' | 'worktree',
         worktreeName?: string,
@@ -333,6 +334,7 @@ export class SyncEngine {
             agent,
             model,
             modelReasoningEffort,
+            piThinkingLevel,
             yolo,
             sessionType,
             worktreeName,
@@ -361,7 +363,7 @@ export class SyncEngine {
             return { type: 'error', message: 'Session metadata missing path', code: 'resume_unavailable' }
         }
 
-        const flavor = metadata.flavor === 'codex' || metadata.flavor === 'gemini' || metadata.flavor === 'opencode' || metadata.flavor === 'cursor'
+        const flavor = metadata.flavor === 'codex' || metadata.flavor === 'gemini' || metadata.flavor === 'opencode' || metadata.flavor === 'cursor' || metadata.flavor === 'pi'
             ? metadata.flavor
             : 'claude'
         const resumeToken = flavor === 'codex'
@@ -372,7 +374,9 @@ export class SyncEngine {
                     ? metadata.opencodeSessionId
                     : flavor === 'cursor'
                         ? metadata.cursorSessionId
-                        : metadata.claudeSessionId
+                        : flavor === 'pi'
+                            ? metadata.piSessionPath ?? metadata.piSessionId
+                            : metadata.claudeSessionId
 
         if (!resumeToken) {
             return { type: 'error', message: 'Resume session ID unavailable', code: 'resume_unavailable' }
@@ -404,6 +408,7 @@ export class SyncEngine {
             metadata.path,
             flavor,
             session.model ?? undefined,
+            undefined,
             undefined,
             undefined,
             undefined,

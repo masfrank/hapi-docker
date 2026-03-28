@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const harness = vi.hoisted(() => ({
@@ -9,20 +12,40 @@ const harness = vi.hoisted(() => ({
         dispose: () => void
         setThinkingLevel: (level: string) => void
         setModel: (model: unknown) => Promise<void>
+        sessionManager: {
+            getSessionFile: () => string
+        }
         modelRegistry: {
             getAll: () => Array<{ provider: string; id: string }>
         }
     } | null,
+    sessionManagerCreateCalls: [] as string[],
+    sessionManagerOpenCalls: [] as string[],
     subscribeCallback: null as ((event: unknown) => void) | null,
     promptCalls: [] as string[],
     abortCalls: 0,
     disposeCalls: 0,
-    thinkingLevelCalls: [] as string[],
+    piThinkingLevelCalls: [] as string[],
     setModelCalls: [] as unknown[]
 }))
 
 vi.mock('@mariozechner/pi-coding-agent', () => ({
-    createAgentSession: async () => {
+    SessionManager: {
+        create: (cwd: string) => {
+            harness.sessionManagerCreateCalls.push(cwd)
+            return {
+                getSessionFile: () => `${cwd}/created-session.jsonl`
+            }
+        },
+        open: (sessionPath: string) => {
+            harness.sessionManagerOpenCalls.push(sessionPath)
+            return {
+                getSessionFile: () => sessionPath
+            }
+        }
+    },
+    createAgentSession: async (options: Record<string, unknown>) => {
+        const sessionManager = options.sessionManager as { getSessionFile?: () => string } | undefined
         harness.piSessionMock = {
             sessionId: 'pi-session-123',
             subscribe: (cb) => {
@@ -39,10 +62,13 @@ vi.mock('@mariozechner/pi-coding-agent', () => ({
                 harness.disposeCalls++
             },
             setThinkingLevel: (level) => {
-                harness.thinkingLevelCalls.push(level)
+                harness.piThinkingLevelCalls.push(level)
             },
             setModel: async (model) => {
                 harness.setModelCalls.push(model)
+            },
+            sessionManager: {
+                getSessionFile: () => sessionManager?.getSessionFile?.() ?? '/tmp/test-project/created-session.jsonl'
             },
             modelRegistry: {
                 getAll: () => [
@@ -65,16 +91,17 @@ vi.mock('./utils/piEventConverter', () => ({
 
 import { PiLauncher } from './piLauncher'
 
-const createSessionStub = () => {
+const createSessionStub = (overrides?: { sessionId?: string | null; path?: string }) => {
     const agentMessages: unknown[] = []
     const sessionEvents: unknown[] = []
-    let sessionFoundId: string | null = null
+    let sessionInfo: { sessionId: string; sessionPath: string | null } | null = null
     let thinkingState = false
     let waitResolve: ((value: unknown) => void) | null = null
 
     return {
         session: {
-            path: '/tmp/test-project',
+            sessionId: overrides?.sessionId ?? null,
+            path: overrides?.path ?? '/tmp/test-project',
             queue: {
                 waitForMessagesAndGetAsString: async (signal: AbortSignal) => {
                     return new Promise((resolve) => {
@@ -84,16 +111,18 @@ const createSessionStub = () => {
                 },
                 reset: vi.fn()
             },
-            onSessionFound: (id: string) => { sessionFoundId = id },
+            setSessionInfo: (sessionId: string, sessionPath: string | null) => {
+                sessionInfo = { sessionId, sessionPath }
+            },
             onThinkingChange: (state: boolean) => { thinkingState = state },
             sendAgentMessage: (msg: unknown) => { agentMessages.push(msg) },
             sendSessionEvent: (event: unknown) => { sessionEvents.push(event) }
         },
         agentMessages,
         sessionEvents,
-        getSessionFoundId: () => sessionFoundId,
+        getSessionInfo: () => sessionInfo,
         getThinkingState: () => thinkingState,
-        pushMessage: (msg: { message: string; mode: { permissionMode: string; model?: string; thinkingLevel?: string }; isolate: boolean; hash: string }) => {
+        pushMessage: (msg: { message: string; mode: { permissionMode: string; model?: string; piThinkingLevel?: string }; isolate: boolean; hash: string }) => {
             waitResolve?.(msg)
         },
         triggerAbort: () => {
@@ -102,14 +131,20 @@ const createSessionStub = () => {
     }
 }
 
+const waitForLauncherReady = async (stub: ReturnType<typeof createSessionStub>): Promise<void> => {
+    await vi.waitFor(() => expect(stub.sessionEvents).toContainEqual({ type: 'ready' }))
+}
+
 describe('PiLauncher', () => {
     beforeEach(() => {
         harness.piSessionMock = null
+        harness.sessionManagerCreateCalls = []
+        harness.sessionManagerOpenCalls = []
         harness.subscribeCallback = null
         harness.promptCalls = []
         harness.abortCalls = 0
         harness.disposeCalls = 0
-        harness.thinkingLevelCalls = []
+        harness.piThinkingLevelCalls = []
         harness.setModelCalls = []
     })
 
@@ -119,27 +154,66 @@ describe('PiLauncher', () => {
 
     describe('initialization', () => {
         it('creates pi session and subscribes to events', async () => {
-            const { session } = createSessionStub()
-            const launcher = new PiLauncher(session as never)
+            const stub = createSessionStub()
+            const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
-
-            expect(harness.subscribeCallback).not.toBeNull()
+            await vi.waitFor(() => expect(harness.subscribeCallback).not.toBeNull())
 
             launcher.requestExit()
             await runPromise
         })
 
-        it('reports session ID via onSessionFound', async () => {
+        it('reports session ID and session path via setSessionInfo', async () => {
             const stub = createSessionStub()
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(stub.getSessionFoundId()).toBe('pi-session-123'))
+            await vi.waitFor(() => expect(stub.getSessionInfo()).toEqual({
+                sessionId: 'pi-session-123',
+                sessionPath: '/tmp/test-project/created-session.jsonl'
+            }))
 
             launcher.requestExit()
             await runPromise
+        })
+
+        it('creates a fresh pi session when no resume path is provided', async () => {
+            const stub = createSessionStub()
+            const launcher = new PiLauncher(stub.session as never)
+
+            const runPromise = launcher.run()
+            await vi.waitFor(() => expect(harness.sessionManagerCreateCalls).toEqual(['/tmp/test-project']))
+
+            expect(harness.sessionManagerOpenCalls).toEqual([])
+
+            launcher.requestExit()
+            await runPromise
+        })
+
+        it('opens existing pi session when resume path is provided', async () => {
+            const tempDir = mkdtempSync(join(tmpdir(), 'pi-launcher-'))
+            const sessionPath = join(tempDir, 'resume-session.jsonl')
+            writeFileSync(sessionPath, '')
+
+            const stub = createSessionStub({ sessionId: sessionPath, path: tempDir })
+            const launcher = new PiLauncher(stub.session as never)
+
+            try {
+                const runPromise = launcher.run()
+                await vi.waitFor(() => expect(harness.sessionManagerOpenCalls).toEqual([sessionPath]))
+                await vi.waitFor(() => expect(stub.getSessionInfo()).toEqual({
+                    sessionId: 'pi-session-123',
+                    sessionPath
+                }))
+
+                expect(harness.sessionManagerCreateCalls).toEqual([])
+
+                launcher.requestExit()
+                await runPromise
+            } finally {
+                rmSync(tempDir, { recursive: true, force: true })
+            }
         })
 
         it('sends ready event after initialization', async () => {
@@ -160,7 +234,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'Hello Pi',
@@ -180,7 +254,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'test',
@@ -203,16 +277,16 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'test',
-                mode: { permissionMode: 'default', thinkingLevel: 'high' },
+                mode: { permissionMode: 'default', piThinkingLevel: 'high' },
                 isolate: false,
                 hash: 'abc'
             })
 
-            await vi.waitFor(() => expect(harness.thinkingLevelCalls).toContain('high'))
+            await vi.waitFor(() => expect(harness.piThinkingLevelCalls).toContain('high'))
 
             launcher.requestExit()
             await runPromise
@@ -223,11 +297,11 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'first',
-                mode: { permissionMode: 'default', thinkingLevel: 'medium' },
+                mode: { permissionMode: 'default', piThinkingLevel: 'medium' },
                 isolate: false,
                 hash: 'a'
             })
@@ -235,13 +309,13 @@ describe('PiLauncher', () => {
 
             stub.pushMessage({
                 message: 'second',
-                mode: { permissionMode: 'default', thinkingLevel: 'medium' },
+                mode: { permissionMode: 'default', piThinkingLevel: 'medium' },
                 isolate: false,
                 hash: 'b'
             })
             await vi.waitFor(() => expect(harness.promptCalls).toHaveLength(2))
 
-            expect(harness.thinkingLevelCalls).toHaveLength(1)
+            expect(harness.piThinkingLevelCalls).toHaveLength(1)
 
             launcher.requestExit()
             await runPromise
@@ -252,7 +326,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'test',
@@ -273,7 +347,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'test',
@@ -294,7 +368,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             stub.pushMessage({
                 message: 'test',
@@ -317,7 +391,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             await launcher.abort()
 
@@ -335,7 +409,7 @@ describe('PiLauncher', () => {
             const launcher = new PiLauncher(stub.session as never)
 
             const runPromise = launcher.run()
-            await vi.waitFor(() => expect(harness.piSessionMock).not.toBeNull())
+            await waitForLauncherReady(stub)
 
             launcher.requestExit()
             await runPromise

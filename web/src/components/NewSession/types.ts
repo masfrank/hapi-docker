@@ -1,7 +1,8 @@
-export type AgentType = 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode'
+export type AgentType = 'claude' | 'codex' | 'cursor' | 'gemini' | 'opencode' | 'pi'
 export type SessionType = 'simple' | 'worktree'
 export type CodexReasoningEffort = 'default' | 'low' | 'medium' | 'high' | 'xhigh'
 export type ClaudeEffort = 'auto' | 'medium' | 'high' | 'max'
+export type PiThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
 export const MODEL_OPTIONS: Record<AgentType, { value: string; label: string }[]> = {
     claude: [
@@ -28,6 +29,11 @@ export const MODEL_OPTIONS: Record<AgentType, { value: string; label: string }[]
         { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     ],
     opencode: [],
+    pi: [
+        { value: 'auto', label: 'Auto' },
+        { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet' },
+        { value: 'anthropic/claude-opus-4-20250514', label: 'Claude Opus' },
+    ],
 }
 
 export const CODEX_REASONING_EFFORT_OPTIONS: { value: CodexReasoningEffort; label: string }[] = [
@@ -43,4 +49,13 @@ export const CLAUDE_EFFORT_OPTIONS: { value: ClaudeEffort; label: string }[] = [
     { value: 'medium', label: 'Medium' },
     { value: 'high', label: 'High' },
     { value: 'max', label: 'Max' },
+]
+
+export const PI_THINKING_LEVEL_OPTIONS: { value: PiThinkingLevel; label: string }[] = [
+    { value: 'off', label: 'Off' },
+    { value: 'minimal', label: 'Minimal' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'XHigh' },
 ]

@@ -1,14 +1,15 @@
 import { AgentSessionBase, type AgentSessionBaseOptions } from '@/agent/sessionBase'
+import type { Metadata } from '@/api/types'
 import type { ApiSessionClient } from '@/lib'
 import type { PiEnhancedMode, PiThinkingLevel, PiPermissionMode } from './piTypes'
 
 export class PiSession extends AgentSessionBase<PiEnhancedMode> {
     readonly startedBy: 'runner' | 'terminal'
-    protected thinkingLevel?: PiThinkingLevel
+    protected piThinkingLevel?: PiThinkingLevel
 
     constructor(opts: Omit<AgentSessionBaseOptions<PiEnhancedMode>, 'sessionLabel' | 'sessionIdLabel' | 'applySessionIdToMetadata'> & {
         startedBy: 'runner' | 'terminal'
-        thinkingLevel?: PiThinkingLevel
+        piThinkingLevel?: PiThinkingLevel
         permissionMode?: PiPermissionMode
     }) {
         super({
@@ -22,19 +23,27 @@ export class PiSession extends AgentSessionBase<PiEnhancedMode> {
             permissionMode: opts.permissionMode
         })
         this.startedBy = opts.startedBy
-        this.thinkingLevel = opts.thinkingLevel
+        this.piThinkingLevel = opts.piThinkingLevel
     }
 
     setThinkingLevel(level: PiThinkingLevel): void {
-        this.thinkingLevel = level
+        this.piThinkingLevel = level
     }
 
     getThinkingLevel(): PiThinkingLevel | undefined {
-        return this.thinkingLevel
+        return this.piThinkingLevel
     }
 
     setPermissionMode = (mode: PiPermissionMode): void => {
         this.permissionMode = mode
+    }
+
+    setSessionInfo = (sessionId: string, sessionPath: string | null): void => {
+        this.onSessionFound(sessionId)
+        if (!sessionPath) {
+            return
+        }
+        this.client.updateMetadata((metadata) => this.applySessionPathToMetadata(metadata, sessionPath))
     }
 
     sendAgentMessage = (message: unknown): void => {
@@ -44,4 +53,9 @@ export class PiSession extends AgentSessionBase<PiEnhancedMode> {
     sendSessionEvent = (event: Parameters<ApiSessionClient['sendSessionEvent']>[0]): void => {
         this.client.sendSessionEvent(event)
     }
+
+    private applySessionPathToMetadata = (metadata: Metadata, sessionPath: string): Metadata => ({
+        ...metadata,
+        piSessionPath: sessionPath
+    })
 }

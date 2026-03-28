@@ -106,6 +106,7 @@ export default {
   'newSession.effort': 'Effort',
   'newSession.model.optional': 'optional',
   'newSession.reasoningEffort': 'Reasoning effort',
+  'newSession.piThinkingLevel': 'PI thinking level',
   'newSession.yolo': 'YOLO mode',
   'newSession.yolo.title': 'Bypass approvals and sandbox',
   'newSession.yolo.desc': 'Uses dangerous agent flags when spawning.',
