@@ -115,8 +115,6 @@ function normalizeUserOutput(
         const trimmed = messageContent.trimStart()
         if (
             trimmed.startsWith('<task-notification>') ||
-            trimmed.startsWith('<command-name>') ||
-            trimmed.startsWith('<local-command-caveat>') ||
             trimmed.startsWith('<system-reminder>')
         ) {
             return null
