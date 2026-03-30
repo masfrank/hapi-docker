@@ -137,12 +137,13 @@ class GeminiRemoteLauncher extends RemoteLauncherBase {
                     this.handleAgentMessage(message);
                 });
             } catch (error) {
-                logger.warn('[gemini-remote] prompt failed', error);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                logger.warn('[gemini-remote] prompt failed', { message: errorMessage });
                 session.sendSessionEvent({
                     type: 'message',
-                    message: 'Gemini prompt failed. Check logs for details.'
+                    message: `Gemini prompt failed: ${errorMessage}`
                 });
-                messageBuffer.addMessage('Gemini prompt failed', 'status');
+                messageBuffer.addMessage(`Gemini prompt failed: ${errorMessage}`, 'status');
             } finally {
                 session.onThinkingChange(false);
                 await this.permissionHandler?.cancelAll('Prompt finished');
