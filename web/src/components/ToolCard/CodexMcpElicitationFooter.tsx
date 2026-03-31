@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { ChatToolCall } from '@/chat/types'
-import { CodeBlock } from '@/components/CodeBlock'
 import { Spinner } from '@/components/Spinner'
 import {
     isCodexMcpElicitationToolName,
@@ -50,14 +49,12 @@ export function CodexMcpElicitationFooter(props: {
 }) {
     const { haptic } = usePlatform()
     const parsed = useMemo(() => parseCodexMcpElicitationInput(props.tool.input), [props.tool.input])
-    const [jsonContent, setJsonContent] = useState('{}')
     const [loading, setLoading] = useState<'accept' | 'decline' | 'cancel' | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         setLoading(null)
         setError(null)
-        setJsonContent('{}')
     }, [props.tool.id])
 
     if (!isCodexMcpElicitationToolName(props.tool.name)) return null
@@ -83,13 +80,7 @@ export function CodexMcpElicitationFooter(props: {
 
         let content: unknown | null = null
         if (parsed.mode === 'form') {
-            try {
-                content = JSON.parse(jsonContent)
-            } catch {
-                setLoading(null)
-                setError('Form content must be valid JSON')
-                return
-            }
+            content = {}
         }
 
         await run(() => props.api.respondToMcpElicitation(props.sessionId, parsed.requestId, {
@@ -111,49 +102,13 @@ export function CodexMcpElicitationFooter(props: {
 
     return (
         <div className="mt-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-3">
-            <div className="text-xs text-[var(--app-hint)]">
-                MCP elicitation request from {parsed.serverName}
-            </div>
-
-            {parsed.message ? (
-                <div className="mt-2 text-sm text-[var(--app-fg)] whitespace-pre-wrap">
-                    {parsed.message}
-                </div>
-            ) : null}
-
-            {parsed.mode === 'form' ? (
-                <div className="mt-3 flex flex-col gap-2">
-                    <div className="text-xs font-medium text-[var(--app-hint)]">Schema</div>
-                    <CodeBlock code={JSON.stringify(parsed.requestedSchema, null, 2)} language="json" />
-                    <div className="text-xs font-medium text-[var(--app-hint)]">Content JSON</div>
-                    <textarea
-                        value={jsonContent}
-                        onChange={(e) => setJsonContent(e.target.value)}
-                        disabled={props.disabled || loading !== null}
-                        spellCheck={false}
-                        className="min-h-[120px] w-full resize-y rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 font-mono text-sm text-[var(--app-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--app-button)] focus:border-transparent disabled:opacity-50"
-                    />
-                </div>
-            ) : (
-                <div className="mt-3">
-                    <a
-                        href={parsed.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-[var(--app-link)] underline break-all"
-                    >
-                        {parsed.url}
-                    </a>
-                </div>
-            )}
-
             {error ? (
-                <div className="mt-2 text-xs text-red-600">
+                <div className="mb-2 text-xs text-red-600">
                     {error}
                 </div>
             ) : null}
 
-            <div className="mt-3 flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
                 <ActionButton
                     label={parsed.mode === 'url' ? 'Open and continue' : 'Submit'}
                     tone="allow"

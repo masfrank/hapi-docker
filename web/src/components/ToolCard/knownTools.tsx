@@ -176,15 +176,19 @@ export const knownTools: Record<string, {
         title: (opts) => {
             const parsed = parseCodexMcpElicitationInput(opts.input)
             if (!parsed) return 'MCP elicitation'
+            const toolTitle = parsed.meta?.toolTitle
+            if (toolTitle) {
+                return parsed.mode === 'url' ? `Approve Sign-in: ${toolTitle}` : `Approve Tool: ${toolTitle}`
+            }
             return parsed.mode === 'url'
-                ? `MCP auth: ${parsed.serverName}`
-                : `MCP input: ${parsed.serverName}`
+                ? `Approve Sign-in: ${parsed.serverName}`
+                : `Approve Tool: ${parsed.serverName}`
         },
         subtitle: (opts) => {
             const parsed = parseCodexMcpElicitationInput(opts.input)
-            return parsed?.message ?? null
+            return parsed?.meta?.toolDescription ?? null
         },
-        minimal: false
+        minimal: true
     },
     shell_command: {
         icon: () => <TerminalIcon className={DEFAULT_ICON_CLASS} />,

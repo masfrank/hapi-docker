@@ -9,6 +9,10 @@ export type CodexMcpElicitationInput =
         mode: 'form'
         message: string
         requestedSchema: Record<string, unknown>
+        meta?: {
+            toolTitle?: string
+            toolDescription?: string
+        }
         url?: undefined
         elicitationId?: undefined
     }
@@ -20,6 +24,10 @@ export type CodexMcpElicitationInput =
         mode: 'url'
         message: string
         url: string
+        meta?: {
+            toolTitle?: string
+            toolDescription?: string
+        }
         elicitationId?: string
         requestedSchema?: undefined
     }
@@ -46,6 +54,12 @@ export function parseCodexMcpElicitationInput(input: unknown): CodexMcpElicitati
     const mode = input.mode
     const message = asString(input.message) ?? ''
     const turnId = typeof input.turnId === 'string' ? input.turnId : null
+    const meta = isObject(input._meta)
+        ? {
+            toolTitle: asString(input._meta.tool_title) ?? undefined,
+            toolDescription: asString(input._meta.tool_description) ?? undefined
+        }
+        : undefined
 
     if (!requestId || !threadId || !serverName) return null
 
@@ -57,7 +71,8 @@ export function parseCodexMcpElicitationInput(input: unknown): CodexMcpElicitati
             serverName,
             mode,
             message,
-            requestedSchema: input.requestedSchema as Record<string, unknown>
+            requestedSchema: input.requestedSchema as Record<string, unknown>,
+            meta
         }
     }
 
@@ -72,6 +87,7 @@ export function parseCodexMcpElicitationInput(input: unknown): CodexMcpElicitati
             mode,
             message,
             url,
+            meta,
             elicitationId: asString(input.elicitationId) ?? undefined
         }
     }
