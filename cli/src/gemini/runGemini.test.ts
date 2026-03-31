@@ -97,14 +97,88 @@ describe('runGemini', () => {
 
     it('does not persist the hardcoded default fallback model', async () => {
         resolveGeminiRuntimeConfigMock.mockReturnValue({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-3-flash-preview',
             modelSource: 'default'
         });
 
         await runGemini({});
 
         expect(harness.bootstrapArgs[0]?.model).toBeUndefined();
-        expect(harness.geminiLoopArgs[0]?.model).toBe('gemini-2.5-pro');
+        expect(harness.geminiLoopArgs[0]?.model).toBe('gemini-3-flash-preview');
+    });
+
+    it('applies model change via set-session-config RPC', async () => {
+        resolveGeminiRuntimeConfigMock.mockReturnValue({
+            model: 'gemini-3-flash-preview',
+            modelSource: 'default'
+        });
+
+        await runGemini({});
+
+        const registerCalls = harness.session.rpcHandlerManager.registerHandler.mock.calls;
+        const configHandler = registerCalls.find(
+            (call: unknown[]) => call[0] === 'set-session-config'
+        );
+        expect(configHandler).toBeDefined();
+
+        const handler = configHandler![1] as (payload: unknown) => Promise<unknown>;
+        const result = await handler({ model: 'gemini-2.5-flash' }) as Record<string, unknown>;
+        const applied = result.applied as Record<string, unknown>;
+        expect(applied.model).toBe('gemini-2.5-flash');
+    });
+
+    it('rejects invalid model in set-session-config RPC', async () => {
+        resolveGeminiRuntimeConfigMock.mockReturnValue({
+            model: 'gemini-3-flash-preview',
+            modelSource: 'default'
+        });
+
+        await runGemini({});
+
+        const registerCalls = harness.session.rpcHandlerManager.registerHandler.mock.calls;
+        const configHandler = registerCalls.find(
+            (call: unknown[]) => call[0] === 'set-session-config'
+        );
+        const handler = configHandler![1] as (payload: unknown) => Promise<unknown>;
+        await expect(handler({ model: 123 })).rejects.toThrow();
+    });
+
+    it('accepts null model (Auto) in set-session-config RPC', async () => {
+        resolveGeminiRuntimeConfigMock.mockReturnValue({
+            model: 'gemini-3-flash-preview',
+            modelSource: 'default'
+        });
+
+        await runGemini({});
+
+        const registerCalls = harness.session.rpcHandlerManager.registerHandler.mock.calls;
+        const configHandler = registerCalls.find(
+            (call: unknown[]) => call[0] === 'set-session-config'
+        );
+        const handler = configHandler![1] as (payload: unknown) => Promise<unknown>;
+        const result = await handler({ model: null }) as Record<string, unknown>;
+        const applied = result.applied as Record<string, unknown>;
+        // null (Default) should be passed through to hub for DB clearing
+        expect(applied.model).toBeNull();
+    });
+
+    it('only includes changed fields in applied response', async () => {
+        resolveGeminiRuntimeConfigMock.mockReturnValue({
+            model: 'gemini-3-flash-preview',
+            modelSource: 'default'
+        });
+
+        await runGemini({});
+
+        const registerCalls = harness.session.rpcHandlerManager.registerHandler.mock.calls;
+        const configHandler = registerCalls.find(
+            (call: unknown[]) => call[0] === 'set-session-config'
+        );
+        const handler = configHandler![1] as (payload: unknown) => Promise<unknown>;
+        const result = await handler({ permissionMode: 'default' }) as Record<string, unknown>;
+        const applied = result.applied as Record<string, unknown>;
+        expect(applied.permissionMode).toBe('default');
+        expect(applied).not.toHaveProperty('model');
     });
 
     it('passes resumeSessionId through to geminiLoop', async () => {
