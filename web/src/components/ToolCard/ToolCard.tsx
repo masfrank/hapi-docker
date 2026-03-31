@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { PermissionFooter } from '@/components/ToolCard/PermissionFooter'
 import { AskUserQuestionFooter } from '@/components/ToolCard/AskUserQuestionFooter'
 import { RequestUserInputFooter } from '@/components/ToolCard/RequestUserInputFooter'
+import { CodexMcpElicitationFooter } from '@/components/ToolCard/CodexMcpElicitationFooter'
 import { isAskUserQuestionToolName } from '@/components/ToolCard/askUserQuestion'
+import { isCodexMcpElicitationToolName } from '@/components/ToolCard/codexMcpElicitation'
 import { isRequestUserInputToolName } from '@/components/ToolCard/requestUserInput'
 import { getToolPresentation } from '@/components/ToolCard/knownTools'
 import { getToolFullViewComponent, getToolViewComponent } from '@/components/ToolCard/views/_all'
@@ -313,12 +315,16 @@ function ToolCardInner(props: ToolCardProps) {
     const permission = props.block.tool.permission
     const isAskUserQuestion = isAskUserQuestionToolName(toolName)
     const isRequestUserInput = isRequestUserInputToolName(toolName)
+    const isCodexMcpElicitation = isCodexMcpElicitationToolName(toolName)
     const isQuestionTool = isAskUserQuestion || isRequestUserInput
+    const showsMcpElicitationFooter = isCodexMcpElicitation && (
+        props.block.tool.state === 'pending' || props.block.tool.state === 'running'
+    )
     const showsPermissionFooter = Boolean(permission && (
         permission.status === 'pending'
         || ((permission.status === 'denied' || permission.status === 'canceled') && Boolean(permission.reason))
     ))
-    const hasBody = showInline || taskSummary !== null || showsPermissionFooter
+    const hasBody = showInline || taskSummary !== null || showsPermissionFooter || showsMcpElicitationFooter
     const stateColor = statusColorClass(props.block.tool.state)
     const { suppressFocusRing, onTriggerPointerDown, onTriggerKeyDown, onTriggerBlur } = usePointerFocusRing()
 
@@ -442,6 +448,14 @@ function ToolCardInner(props: ToolCardProps) {
                         />
                     ) : isRequestUserInput && permission?.status === 'pending' ? (
                         <RequestUserInputFooter
+                            api={props.api}
+                            sessionId={props.sessionId}
+                            tool={props.block.tool}
+                            disabled={props.disabled}
+                            onDone={props.onDone}
+                        />
+                    ) : isCodexMcpElicitation ? (
+                        <CodexMcpElicitationFooter
                             api={props.api}
                             sessionId={props.sessionId}
                             tool={props.block.tool}

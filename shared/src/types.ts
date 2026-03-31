@@ -5,6 +5,8 @@ export type {
     AttachmentMetadata,
     DecryptedMessage,
     Metadata,
+    McpElicitationAction,
+    McpElicitationResponse,
     Session,
     SyncEvent,
     TeamMember,

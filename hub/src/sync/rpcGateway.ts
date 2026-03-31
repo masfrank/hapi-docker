@@ -1,4 +1,5 @@
 import type { CodexCollaborationMode, PermissionMode } from '@hapi/protocol/types'
+import type { McpElicitationAction } from '@hapi/protocol/types'
 import type { Server } from 'socket.io'
 import type { RpcRegistry } from '../socket/rpcRegistry'
 
@@ -78,6 +79,19 @@ export class RpcGateway {
             id: requestId,
             approved: false,
             decision
+        })
+    }
+
+    async respondToMcpElicitation(
+        sessionId: string,
+        requestId: string,
+        action: McpElicitationAction,
+        content?: unknown | null
+    ): Promise<void> {
+        await this.sessionRpc(sessionId, 'mcp-elicitation-response', {
+            id: requestId,
+            action,
+            content: content ?? null
         })
     }
 
