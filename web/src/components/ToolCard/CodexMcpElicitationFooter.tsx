@@ -49,7 +49,7 @@ export function CodexMcpElicitationFooter(props: {
 }) {
     const { haptic } = usePlatform()
     const parsed = useMemo(() => parseCodexMcpElicitationInput(props.tool.input), [props.tool.input])
-    const [loading, setLoading] = useState<'accept' | 'decline' | 'cancel' | null>(null)
+    const [loading, setLoading] = useState<'accept' | 'decline' | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
@@ -90,11 +90,11 @@ export function CodexMcpElicitationFooter(props: {
         setLoading(null)
     }
 
-    const submitSimple = async (action: 'decline' | 'cancel') => {
+    const submitDecline = async () => {
         if (loading) return
-        setLoading(action)
+        setLoading('decline')
         await run(() => props.api.respondToMcpElicitation(props.sessionId, parsed.requestId, {
-            action,
+            action: 'decline',
             content: null
         }))
         setLoading(null)
@@ -121,14 +121,7 @@ export function CodexMcpElicitationFooter(props: {
                     tone="neutral"
                     loading={loading === 'decline'}
                     disabled={props.disabled || loading !== null}
-                    onClick={() => submitSimple('decline')}
-                />
-                <ActionButton
-                    label="Cancel"
-                    tone="deny"
-                    loading={loading === 'cancel'}
-                    disabled={props.disabled || loading !== null}
-                    onClick={() => submitSimple('cancel')}
+                    onClick={submitDecline}
                 />
             </div>
         </div>
