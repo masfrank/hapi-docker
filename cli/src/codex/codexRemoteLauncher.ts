@@ -256,19 +256,37 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
         });
 
         const parseMcpElicitationRequest = (params: McpServerElicitationRequestParams) => {
-            const request = params.request;
-            const requestId = request.mode === 'url' ? request.elicitationId : randomUUID();
+            const paramsRecord = asRecord(params) ?? {};
+            const mode = asString(paramsRecord.mode);
+            const message = asString(paramsRecord.message) ?? '';
+            const requestedSchema = asRecord(paramsRecord.requestedSchema);
+            const url = asString(paramsRecord.url);
+            const elicitationId = asString(paramsRecord.elicitationId);
+
+            if (mode !== 'form' && mode !== 'url') {
+                throw new Error('Invalid MCP elicitation request: missing mode');
+            }
+
+            if (mode === 'form' && !requestedSchema) {
+                throw new Error('Invalid MCP elicitation form request: missing requestedSchema');
+            }
+
+            if (mode === 'url' && !url) {
+                throw new Error('Invalid MCP elicitation URL request: missing url');
+            }
+
+            const requestId = mode === 'url' ? (elicitationId ?? randomUUID()) : randomUUID();
 
             return {
                 requestId,
                 threadId: params.threadId,
                 turnId: params.turnId,
                 serverName: params.serverName,
-                mode: request.mode,
-                message: request.message,
-                requestedSchema: request.mode === 'form' ? request.requestedSchema : undefined,
-                url: request.mode === 'url' ? request.url : undefined,
-                elicitationId: request.mode === 'url' ? request.elicitationId : undefined
+                mode,
+                message,
+                requestedSchema: mode === 'form' ? requestedSchema : undefined,
+                url: mode === 'url' ? url : undefined,
+                elicitationId: mode === 'url' ? elicitationId : undefined
             };
         };
 
