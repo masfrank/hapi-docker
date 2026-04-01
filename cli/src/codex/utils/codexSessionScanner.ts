@@ -3,6 +3,7 @@ import { logger } from "@/ui/logger";
 import { join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { readFile, readdir, stat } from "node:fs/promises";
+import type { ResolveCodexSessionFileResult } from "./resolveCodexSessionFile";
 import type { CodexSessionEvent } from "./codexEventConverter";
 
 interface CodexSessionScannerOptions {
@@ -10,6 +11,7 @@ interface CodexSessionScannerOptions {
     onEvent: (event: CodexSessionEvent) => void;
     onSessionFound?: (sessionId: string) => void;
     onSessionMatchFailed?: (message: string) => void;
+    resolvedSessionFile?: ResolveCodexSessionFileResult | null;
     cwd?: string;
     startupTimestampMs?: number;
     sessionStartWindowMs?: number;
@@ -34,6 +36,31 @@ const DEFAULT_SESSION_START_WINDOW_MS = 2 * 60 * 1000;
 
 export async function createCodexSessionScanner(opts: CodexSessionScannerOptions): Promise<CodexSessionScanner> {
     const targetCwd = opts.cwd && opts.cwd.trim().length > 0 ? normalizePath(opts.cwd) : null;
+    const resolvedSessionFile = opts.resolvedSessionFile ?? null;
+
+    if (resolvedSessionFile) {
+        if (resolvedSessionFile.status !== 'found') {
+            const message = `Explicit Codex session resolution failed with status ${resolvedSessionFile.status}; refusing fallback.`;
+            logger.warn(`[CODEX_SESSION_SCANNER] ${message}`);
+            opts.onSessionMatchFailed?.(message);
+            return {
+                cleanup: async () => {},
+                onNewSession: () => {}
+            };
+        }
+
+        const scanner = new CodexSessionScannerImpl(opts, targetCwd, resolvedSessionFile.filePath);
+        await scanner.start();
+
+        return {
+            cleanup: async () => {
+                await scanner.cleanup();
+            },
+            onNewSession: (sessionId: string) => {
+                scanner.onNewSession(sessionId);
+            }
+        };
+    }
 
     if (!targetCwd && !opts.sessionId) {
         const message = 'No cwd provided for Codex session matching; refusing to fallback.';
@@ -74,6 +101,8 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     private readonly sessionStartWindowMs: number;
     private readonly matchDeadlineMs: number;
     private readonly sessionDatePrefixes: Set<string> | null;
+    private readonly explicitResolvedFilePath: string | null;
+    private readonly explicitResumeMode: boolean;
 
     private activeSessionId: string | null;
     private reportedSessionId: string | null;
@@ -84,7 +113,7 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     private readonly firstRecentActivitySessionIds = new Set<string>();
     private loggedAmbiguousRecentActivity = false;
 
-    constructor(opts: CodexSessionScannerOptions, targetCwd: string | null) {
+    constructor(opts: CodexSessionScannerOptions, targetCwd: string | null, explicitResolvedFilePath: string | null = null) {
         super({ intervalMs: 2000 });
         const codexHomeDir = process.env.CODEX_HOME || join(homedir(), '.codex');
         this.sessionsRoot = join(codexHomeDir, 'sessions');
@@ -97,14 +126,19 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
         this.referenceTimestampMs = opts.startupTimestampMs ?? Date.now();
         this.sessionStartWindowMs = opts.sessionStartWindowMs ?? DEFAULT_SESSION_START_WINDOW_MS;
         this.matchDeadlineMs = this.referenceTimestampMs + this.sessionStartWindowMs;
+        this.explicitResolvedFilePath = explicitResolvedFilePath ? normalizePath(explicitResolvedFilePath) : null;
+        this.explicitResumeMode = this.explicitResolvedFilePath !== null;
         this.sessionDatePrefixes = this.targetCwd
-            ? getSessionDatePrefixes(this.referenceTimestampMs, this.sessionStartWindowMs)
+            ? (this.explicitResumeMode ? null : getSessionDatePrefixes(this.referenceTimestampMs, this.sessionStartWindowMs))
             : null;
 
         logger.debug(`[CODEX_SESSION_SCANNER] Init: targetCwd=${this.targetCwd ?? 'none'} startupTs=${new Date(this.referenceTimestampMs).toISOString()} windowMs=${this.sessionStartWindowMs}`);
     }
 
     public onNewSession(sessionId: string): void {
+        if (this.explicitResumeMode) {
+            return;
+        }
         if (this.activeSessionId === sessionId) {
             return;
         }
@@ -118,6 +152,9 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     }
 
     protected shouldWatchFile(filePath: string): boolean {
+        if (this.explicitResolvedFilePath) {
+            return normalizePath(filePath) === this.explicitResolvedFilePath;
+        }
         if (!this.activeSessionId) {
             if (!this.targetCwd) {
                 return false;
@@ -132,7 +169,15 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     }
 
     protected async initialize(): Promise<void> {
-        const files = await this.listSessionFiles(this.sessionsRoot);
+        const files = await this.getSessionFilesForScan();
+        if (this.explicitResolvedFilePath) {
+            for (const filePath of files) {
+                if (this.shouldWatchFile(filePath)) {
+                    this.ensureWatcher(filePath);
+                }
+            }
+            return;
+        }
         for (const filePath of files) {
             const { nextCursor } = await this.readSessionFile(filePath, 0);
             this.setCursor(filePath, nextCursor);
@@ -148,7 +193,7 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     }
 
     protected async findSessionFiles(): Promise<string[]> {
-        const files = await this.listSessionFiles(this.sessionsRoot);
+        const files = await this.getSessionFilesForScan();
         return sortFilesByMtime(files);
     }
 
@@ -168,6 +213,14 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     protected async handleFileScan(stats: SessionFileScanStats<CodexSessionEvent>): Promise<void> {
         const filePath = stats.filePath;
         const fileSessionId = this.sessionIdByFile.get(filePath) ?? null;
+
+        if (this.explicitResolvedFilePath) {
+            const emittedForFile = this.emitEvents(stats.events, fileSessionId);
+            if (emittedForFile > 0) {
+                logger.debug(`[CODEX_SESSION_SCANNER] Emitted ${emittedForFile} new events from ${filePath}`);
+            }
+            return;
+        }
 
         if (!this.activeSessionId && this.targetCwd) {
             this.appendPendingEvents(filePath, stats.events, fileSessionId);
@@ -194,6 +247,9 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     }
 
     protected async afterScan(): Promise<void> {
+        if (this.explicitResolvedFilePath) {
+            return;
+        }
         if (!this.activeSessionId && this.targetCwd) {
             if (this.bestWithinWindow) {
                 logger.debug(`[CODEX_SESSION_SCANNER] Selected session ${this.bestWithinWindow.sessionId} within start window`);
@@ -243,6 +299,9 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     }
 
     private shouldSkipFile(filePath: string): boolean {
+        if (this.explicitResolvedFilePath) {
+            return normalizePath(filePath) !== this.explicitResolvedFilePath;
+        }
         if (!this.activeSessionId) {
             return false;
         }
@@ -300,6 +359,13 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
         } catch (error) {
             return [];
         }
+    }
+
+    private async getSessionFilesForScan(): Promise<string[]> {
+        if (this.explicitResolvedFilePath) {
+            return [this.explicitResolvedFilePath];
+        }
+        return this.listSessionFiles(this.sessionsRoot);
     }
 
     private async readSessionFile(filePath: string, startLine: number): Promise<SessionFileScanResult<CodexSessionEvent>> {

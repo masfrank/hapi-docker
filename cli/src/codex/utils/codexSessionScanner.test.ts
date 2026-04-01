@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { createCodexSessionScanner } from './codexSessionScanner';
+import type { ResolveCodexSessionFileResult } from './resolveCodexSessionFile';
 import type { CodexSessionEvent } from './codexEventConverter';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -146,6 +147,123 @@ describe('codexSessionScanner', () => {
         await appendFile(sessionFile, newLine + '\n');
 
         await wait(200);
+        expect(events).toHaveLength(0);
+    });
+
+    it('explicit resume scans only the resolved file and ignores stray matching cwd files', async () => {
+        const targetCwd = '/data/github/happy/hapi';
+        const resolvedSessionId = 'session-explicit-resolved';
+        const straySessionId = 'session-explicit-stray';
+        const resolvedFile = join(sessionsDir, `codex-${resolvedSessionId}.jsonl`);
+        const strayFile = join(sessionsDir, `codex-${straySessionId}.jsonl`);
+        const resolvedResult: ResolveCodexSessionFileResult = {
+            status: 'found',
+            filePath: resolvedFile,
+            cwd: targetCwd,
+            timestamp: Date.parse('2025-12-22T00:00:00.000Z')
+        };
+
+        await writeFile(
+            resolvedFile,
+            [
+                JSON.stringify({ type: 'session_meta', payload: { id: resolvedSessionId, cwd: targetCwd, timestamp: '2025-12-22T00:00:00.000Z' } }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: 'resolved-initial' } })
+            ].join('\n') + '\n'
+        );
+        await writeFile(
+            strayFile,
+            [
+                JSON.stringify({ type: 'session_meta', payload: { id: straySessionId, cwd: targetCwd, timestamp: '2025-12-22T00:00:00.000Z' } }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: 'stray-initial' } })
+            ].join('\n') + '\n'
+        );
+
+        scanner = await createCodexSessionScanner({
+            sessionId: resolvedSessionId,
+            cwd: targetCwd,
+            resolvedSessionFile: resolvedResult,
+            onEvent: (event) => events.push(event)
+        });
+
+        await wait(200);
+        expect(events).toHaveLength(2);
+        expect(events[0].type).toBe('session_meta');
+        expect(events[1].type).toBe('event_msg');
+        expect((events[1].payload as Record<string, unknown>).message).toBe('resolved-initial');
+
+        await appendFile(
+            strayFile,
+            JSON.stringify({
+                type: 'response_item',
+                payload: { type: 'function_call', name: 'Tool', call_id: 'call-stray', arguments: '{}' }
+            }) + '\n'
+        );
+        await appendFile(
+            resolvedFile,
+            JSON.stringify({
+                type: 'response_item',
+                payload: { type: 'function_call', name: 'Tool', call_id: 'call-resolved', arguments: '{}' }
+            }) + '\n'
+        );
+
+        await wait(2300);
+        expect(events).toHaveLength(3);
+        expect(events[2].type).toBe('response_item');
+        expect((events[2].payload as Record<string, unknown>).call_id).toBe('call-resolved');
+    });
+
+    it('explicit resume failure does not adopt another session', async () => {
+        const targetCwd = '/data/github/happy/hapi';
+        const requestedSessionId = 'session-explicit-missing';
+        const fallbackSessionId = 'session-fallback-candidate';
+        const fallbackFile = join(sessionsDir, `codex-${fallbackSessionId}.jsonl`);
+        const resolverFailureResult: ResolveCodexSessionFileResult = {
+            status: 'not_found'
+        };
+
+        await writeFile(
+            fallbackFile,
+            JSON.stringify({
+                type: 'session_meta',
+                payload: {
+                    id: fallbackSessionId,
+                    cwd: targetCwd,
+                    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString()
+                }
+            }) + '\n'
+        );
+
+        let failureMessage: string | null = null;
+        let matchedSessionId: string | null = null;
+        scanner = await createCodexSessionScanner({
+            sessionId: requestedSessionId,
+            cwd: targetCwd,
+            resolvedSessionFile: resolverFailureResult,
+            onEvent: (event) => events.push(event),
+            onSessionFound: (sessionId) => {
+                matchedSessionId = sessionId;
+            },
+            onSessionMatchFailed: (message) => {
+                failureMessage = message;
+            }
+        });
+
+        await wait(200);
+        expect(failureMessage).not.toBeNull();
+        expect(matchedSessionId).toBeNull();
+        expect(events).toHaveLength(0);
+
+        await appendFile(
+            fallbackFile,
+            JSON.stringify({
+                type: 'response_item',
+                payload: { type: 'function_call', name: 'Tool', call_id: 'call-fallback', arguments: '{}' }
+            }) + '\n'
+        );
+
+        await wait(2300);
+        expect(failureMessage).not.toBeNull();
+        expect(matchedSessionId).toBeNull();
         expect(events).toHaveLength(0);
     });
 
