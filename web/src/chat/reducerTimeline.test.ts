@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { reduceTimeline } from './reducerTimeline'
 import type { TracedMessage } from './tracer'
 
-function makeContext() {
+function makeContext(overrides?: { isClaudeSession?: boolean }) {
     return {
         permissionsById: new Map(),
         groups: new Map(),
         consumedGroupIds: new Set<string>(),
         titleChangesByToolUseId: new Map(),
-        emittedTitleChangeToolUseIds: new Set<string>()
+        emittedTitleChangeToolUseIds: new Set<string>(),
+        isClaudeSession: overrides?.isClaudeSession ?? true
     }
 }
 
@@ -85,6 +86,22 @@ describe('reduceTimeline – system injection filtering', () => {
     it('passes through normal user text as user-text block', () => {
         const text = 'Hello, this is a normal message'
         const { blocks } = reduceTimeline([makeUserMessage(text)], makeContext())
+
+        expect(blocks).toHaveLength(1)
+        expect(blocks[0].kind).toBe('user-text')
+    })
+
+    it('does not filter system tags in non-Claude sessions', () => {
+        const text = `<task-notification> <summary>Some task</summary> </task-notification>`
+        const { blocks } = reduceTimeline([makeUserMessage(text)], makeContext({ isClaudeSession: false }))
+
+        expect(blocks).toHaveLength(1)
+        expect(blocks[0].kind).toBe('user-text')
+    })
+
+    it('does not filter <system-reminder> in non-Claude sessions', () => {
+        const text = `<system-reminder>Some reminder</system-reminder>`
+        const { blocks } = reduceTimeline([makeUserMessage(text)], makeContext({ isClaudeSession: false }))
 
         expect(blocks).toHaveLength(1)
         expect(blocks[0].kind).toBe('user-text')

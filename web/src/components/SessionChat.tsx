@@ -198,9 +198,11 @@ export function SessionChat(props: {
         return normalized
     }, [props.messages])
 
+    const isClaudeSession = Boolean(props.session.metadata?.claudeSessionId)
+
     const reduced = useMemo(
-        () => reduceChatBlocks(normalizedMessages, props.session.agentState),
-        [normalizedMessages, props.session.agentState]
+        () => reduceChatBlocks(normalizedMessages, props.session.agentState, { isClaudeSession }),
+        [normalizedMessages, props.session.agentState, isClaudeSession]
     )
     const reconciled = useMemo(
         () => reconcileChatBlocks(reduced.blocks, blocksByIdRef.current),

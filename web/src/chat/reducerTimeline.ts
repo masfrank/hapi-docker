@@ -37,6 +37,7 @@ export function reduceTimeline(
         consumedGroupIds: Set<string>
         titleChangesByToolUseId: Map<string, string>
         emittedTitleChangeToolUseIds: Set<string>
+        isClaudeSession?: boolean
     }
 ): { blocks: ChatBlock[]; toolBlocksById: Map<string, ToolCallBlock>; hasReadyEvent: boolean } {
     const blocks: ChatBlock[] = []
@@ -72,19 +73,21 @@ export function reduceTimeline(
         }
 
         if (msg.role === 'user') {
-            const taskSummary = parseTaskNotificationSummary(msg.content.text)
-            if (taskSummary) {
-                blocks.push({
-                    kind: 'agent-event',
-                    id: msg.id,
-                    createdAt: msg.createdAt,
-                    event: { type: 'message', message: taskSummary },
-                    meta: msg.meta
-                })
-                continue
-            }
-            if (isSystemInjectedMessage(msg.content.text)) {
-                continue
+            if (context.isClaudeSession) {
+                const taskSummary = parseTaskNotificationSummary(msg.content.text)
+                if (taskSummary) {
+                    blocks.push({
+                        kind: 'agent-event',
+                        id: msg.id,
+                        createdAt: msg.createdAt,
+                        event: { type: 'message', message: taskSummary },
+                        meta: msg.meta
+                    })
+                    continue
+                }
+                if (isSystemInjectedMessage(msg.content.text)) {
+                    continue
+                }
             }
             if (isCliOutputText(msg.content.text, msg.meta)) {
                 blocks.push(createCliOutputBlock({
