@@ -111,13 +111,6 @@ export class AcpMessageHandler {
         }
         const text = this.bufferedText;
         this.bufferedText = '';
-        const rateLimitResult = parseRateLimitText(text);
-        if (rateLimitResult) {
-            if (!rateLimitResult.suppress) {
-                this.onMessage(rateLimitResult.message);
-            }
-            return;
-        }
         this.onMessage({ type: 'text', text });
     }
 
