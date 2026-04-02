@@ -67,6 +67,30 @@ describe('normalizeDecryptedMessage', () => {
         expect(normalizeDecryptedMessage(message)?.sidechainKey).toBeUndefined()
     })
 
+    it('keeps Codex payloads root-level when parentToolCallId is present without isSidechain', () => {
+        const message = makeMessage({
+            role: 'agent',
+            content: {
+                type: 'codex',
+                data: {
+                    type: 'tool-call',
+                    callId: 'tool-call-1',
+                    id: 'tool-use-1',
+                    name: 'spawn',
+                    input: { prompt: 'hi' },
+                    parentToolCallId: 'spawn-1'
+                }
+            }
+        })
+
+        expect(normalizeDecryptedMessage(message)).toMatchObject({
+            id: 'msg-1',
+            role: 'agent',
+            isSidechain: false
+        })
+        expect(normalizeDecryptedMessage(message)?.sidechainKey).toBeUndefined()
+    })
+
     it('preserves user sidechain metadata from record meta', () => {
         const message = makeMessage({
             role: 'user',

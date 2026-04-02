@@ -315,7 +315,7 @@ export function normalizeAgentRecord(
         const data = isObject(content.data) ? content.data : null
         if (!data || typeof data.type !== 'string') return null
         const isSidechain = Boolean(data.isSidechain)
-        const sidechainKey = asString(data.parentToolCallId) ?? undefined
+        const sidechainKey = isSidechain ? asString(data.parentToolCallId) ?? undefined : undefined
 
         if (data.type === 'message' && typeof data.message === 'string') {
             return {
