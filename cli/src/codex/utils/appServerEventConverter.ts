@@ -136,6 +136,7 @@ export class AppServerEventConverter {
     private readonly lastReasoningDeltaByItemId = new Map<string, string>();
     private readonly lastCommandOutputDeltaByItemId = new Map<string, string>();
     private readonly childThreadIdToParentToolCallId = new Map<string, string>();
+    private readonly lastDeliveredChildAgentMessageByThreadId = new Map<string, string>();
 
     private addSidechainMeta(
         event: ConvertedEvent,
@@ -472,6 +473,16 @@ export class AppServerEventConverter {
                             const status = asString(stateRecord.status) ?? 'completed';
                             const message = asString(stateRecord.message);
                             statuses[receiverThreadId] = message ? { status, message } : { status };
+                            const parentToolCallId = this.childThreadIdToParentToolCallId.get(receiverThreadId);
+                            const lastDeliveredMessage = this.lastDeliveredChildAgentMessageByThreadId.get(receiverThreadId);
+                            if (message && parentToolCallId && lastDeliveredMessage !== message) {
+                                this.lastDeliveredChildAgentMessageByThreadId.set(receiverThreadId, message);
+                                events.push({
+                                    type: 'agent_message',
+                                    message,
+                                    parent_tool_call_id: parentToolCallId
+                                });
+                            }
                         }
 
                         events.push({
@@ -537,7 +548,16 @@ export class AppServerEventConverter {
                     }
                     const text = extractItemText(item) ?? this.agentMessageBuffers.get(itemId);
                     if (text) {
-                        events.push(this.addSidechainMeta({ type: 'agent_message', message: text }, threadId));
+                        const event = this.addSidechainMeta({ type: 'agent_message', message: text }, threadId);
+                        const parentToolCallId = asString((event as Record<string, unknown>).parent_tool_call_id);
+                        if (threadId && parentToolCallId) {
+                            const lastDeliveredMessage = this.lastDeliveredChildAgentMessageByThreadId.get(threadId);
+                            if (lastDeliveredMessage === text) {
+                                return events;
+                            }
+                            this.lastDeliveredChildAgentMessageByThreadId.set(threadId, text);
+                        }
+                        events.push(event);
                         this.completedAgentMessageItems.add(itemId);
                         this.agentMessageBuffers.delete(itemId);
                     }
@@ -662,5 +682,6 @@ export class AppServerEventConverter {
         this.lastReasoningDeltaByItemId.clear();
         this.lastCommandOutputDeltaByItemId.clear();
         this.childThreadIdToParentToolCallId.clear();
+        this.lastDeliveredChildAgentMessageByThreadId.clear();
     }
 }

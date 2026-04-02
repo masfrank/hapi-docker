@@ -199,18 +199,72 @@ describe('AppServerEventConverter', () => {
                 }
             }
         });
-        expect(waitCompleted).toEqual([{
-            type: 'tool_call_result',
-            call_id: 'wait-1',
-            output: {
-                statuses: {
-                    'child-thread-1': {
-                        status: 'completed',
-                        message: 'done'
+        expect(waitCompleted).toEqual([
+            {
+                type: 'agent_message',
+                message: 'done',
+                parent_tool_call_id: 'spawn-1'
+            },
+            {
+                type: 'tool_call_result',
+                call_id: 'wait-1',
+                output: {
+                    statuses: {
+                        'child-thread-1': {
+                            status: 'completed',
+                            message: 'done'
+                        }
                     }
                 }
             }
-        }]);
+        ]);
+    });
+
+    it('backfills missing child agent messages from wait results without duplicating later completions', () => {
+        const converter = new AppServerEventConverter();
+
+        converter.handleNotification('item/completed', {
+            threadId: 'parent-thread',
+            item: {
+                id: 'spawn-1',
+                type: 'collabAgentToolCall',
+                tool: 'spawnAgent',
+                receiverThreadIds: ['child-thread-1']
+            }
+        });
+
+        const waitCompleted = converter.handleNotification('item/completed', {
+            threadId: 'parent-thread',
+            item: {
+                id: 'wait-1',
+                type: 'collabAgentToolCall',
+                tool: 'wait',
+                receiverThreadIds: ['child-thread-1'],
+                agentsStates: {
+                    'child-thread-1': {
+                        status: 'completed',
+                        message: 'fallback child answer'
+                    }
+                }
+            }
+        });
+
+        expect(waitCompleted[0]).toEqual({
+            type: 'agent_message',
+            message: 'fallback child answer',
+            parent_tool_call_id: 'spawn-1'
+        });
+
+        const childCompleted = converter.handleNotification('item/completed', {
+            threadId: 'child-thread-1',
+            item: {
+                id: 'child-agent-1',
+                type: 'agentMessage',
+                content: [{ type: 'text', text: 'fallback child answer' }]
+            }
+        });
+
+        expect(childCompleted).toEqual([]);
     });
 
     it('ignores child-thread hapi change_title tool calls in live mode', () => {
