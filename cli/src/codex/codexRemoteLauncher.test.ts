@@ -4,6 +4,7 @@ import type { EnhancedMode } from './loop';
 
 const harness = vi.hoisted(() => ({
     notifications: [] as Array<{ method: string; params: unknown }>,
+    extraNotifications: [] as Array<{ method: string; params: unknown }>,
     registerRequestCalls: [] as string[],
     initializeCalls: [] as unknown[],
     startThreadCalls: [] as unknown[],
@@ -63,6 +64,11 @@ vi.mock('./codexAppServerClient', () => {
             const completed = { status: 'Completed', turn: {} };
             harness.notifications.push({ method: 'turn/completed', params: completed });
             this.notificationHandler?.('turn/completed', completed);
+
+            for (const notification of harness.extraNotifications) {
+                harness.notifications.push(notification);
+                this.notificationHandler?.(notification.method, notification.params);
+            }
 
             return { turn: {} };
         }
@@ -186,6 +192,7 @@ function createSessionStub(overrides?: { sessionId?: string | null }) {
 describe('codexRemoteLauncher', () => {
     afterEach(() => {
         harness.notifications = [];
+        harness.extraNotifications = [];
         harness.registerRequestCalls = [];
         harness.initializeCalls = [];
         harness.startThreadCalls = [];
@@ -302,5 +309,63 @@ describe('codexRemoteLauncher', () => {
         expect(sessionEvents.filter((event) => event.type === 'ready').length).toBeGreaterThanOrEqual(1);
         expect(thinkingChanges).toContain(true);
         expect(session.thinking).toBe(false);
+    });
+
+    it('promotes nested parent_tool_call_id from exec command payloads into top-level sidechain metadata', async () => {
+        harness.extraNotifications = [
+            {
+                method: 'item/completed',
+                params: {
+                    threadId: 'parent-thread',
+                    item: {
+                        id: 'spawn-1',
+                        type: 'collabAgentToolCall',
+                        tool: 'spawnAgent',
+                        receiverThreadIds: ['child-thread-1']
+                    }
+                }
+            },
+            {
+                method: 'item/started',
+                params: {
+                    threadId: 'child-thread-1',
+                    item: {
+                        id: 'cmd-1',
+                        type: 'commandExecution',
+                        command: 'ls'
+                    }
+                }
+            },
+            {
+                method: 'item/completed',
+                params: {
+                    threadId: 'child-thread-1',
+                    item: {
+                        id: 'cmd-1',
+                        type: 'commandExecution',
+                        exitCode: 0
+                    }
+                }
+            }
+        ];
+
+        const { session, codexMessages } = createSessionStub();
+
+        const exitReason = await codexRemoteLauncher(session as never);
+
+        expect(exitReason).toBe('exit');
+        expect(codexMessages).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                type: 'tool-call',
+                name: 'CodexBash',
+                isSidechain: true,
+                parentToolCallId: 'spawn-1'
+            }),
+            expect.objectContaining({
+                type: 'tool-call-result',
+                isSidechain: true,
+                parentToolCallId: 'spawn-1'
+            })
+        ]));
     });
 });

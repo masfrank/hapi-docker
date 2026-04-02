@@ -140,6 +140,21 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
             return typeof value === 'string' && value.length > 0 ? value : null;
         };
 
+        const extractParentToolCallId = (value: unknown): string | null => {
+            const record = asRecord(value);
+            if (!record) {
+                return asString(value);
+            }
+            return asString(
+                record.parent_tool_call_id
+                ?? record.parentToolCallId
+                ?? asRecord(record.input)?.parent_tool_call_id
+                ?? asRecord(record.input)?.parentToolCallId
+                ?? asRecord(record.output)?.parent_tool_call_id
+                ?? asRecord(record.output)?.parentToolCallId
+            );
+        };
+
         const applyResolvedModel = (value: unknown): string | undefined => {
             const resolvedModel = asString(value) ?? undefined;
             if (!resolvedModel) {
@@ -402,14 +417,22 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     delete inputs.type;
                     delete inputs.call_id;
                     delete inputs.callId;
+                    delete inputs.parent_tool_call_id;
+                    delete inputs.parentToolCallId;
 
-                    session.sendAgentMessage({
+                    const payload: Record<string, unknown> = {
                         type: 'tool-call',
                         name: 'CodexBash',
                         callId: callId,
                         input: inputs,
                         id: randomUUID()
-                    });
+                    };
+                    const parentToolCallId = extractParentToolCallId(msg);
+                    if (parentToolCallId) {
+                        payload.isSidechain = true;
+                        payload.parentToolCallId = parentToolCallId;
+                    }
+                    session.sendAgentMessage(payload);
                 }
             }
             if (msgType === 'exec_command_end') {
@@ -419,13 +442,21 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     delete output.type;
                     delete output.call_id;
                     delete output.callId;
+                    delete output.parent_tool_call_id;
+                    delete output.parentToolCallId;
 
-                    session.sendAgentMessage({
+                    const payload: Record<string, unknown> = {
                         type: 'tool-call-result',
                         callId: callId,
                         output,
                         id: randomUUID()
-                    });
+                    };
+                    const parentToolCallId = extractParentToolCallId(msg);
+                    if (parentToolCallId) {
+                        payload.isSidechain = true;
+                        payload.parentToolCallId = parentToolCallId;
+                    }
+                    session.sendAgentMessage(payload);
                 }
             }
             if (msgType === 'token_count') {
@@ -478,7 +509,7 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     const filesMsg = changeCount === 1 ? '1 file' : `${changeCount} files`;
                     messageBuffer.addMessage(`Modifying ${filesMsg}...`, 'tool');
 
-                    session.sendAgentMessage({
+                    const payload: Record<string, unknown> = {
                         type: 'tool-call',
                         name: 'CodexPatch',
                         callId: callId,
@@ -487,7 +518,13 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                             changes
                         },
                         id: randomUUID()
-                    });
+                    };
+                    const parentToolCallId = extractParentToolCallId(msg);
+                    if (parentToolCallId) {
+                        payload.isSidechain = true;
+                        payload.parentToolCallId = parentToolCallId;
+                    }
+                    session.sendAgentMessage(payload);
                 }
             }
             if (msgType === 'patch_apply_end') {
@@ -505,7 +542,7 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                         messageBuffer.addMessage(`Error: ${errorMsg.substring(0, 200)}`, 'result');
                     }
 
-                    session.sendAgentMessage({
+                    const payload: Record<string, unknown> = {
                         type: 'tool-call-result',
                         callId: callId,
                         output: {
@@ -514,7 +551,13 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                             success
                         },
                         id: randomUUID()
-                    });
+                    };
+                    const parentToolCallId = extractParentToolCallId(msg);
+                    if (parentToolCallId) {
+                        payload.isSidechain = true;
+                        payload.parentToolCallId = parentToolCallId;
+                    }
+                    session.sendAgentMessage(payload);
                 }
             }
             if (msgType === 'mcp_tool_call_begin') {
