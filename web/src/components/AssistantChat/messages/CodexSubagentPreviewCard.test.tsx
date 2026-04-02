@@ -171,6 +171,19 @@ describe('CodexSubagentPreviewCard', () => {
         expect(screen.queryByRole('link', { name: 'repo' })).not.toBeInTheDocument()
     })
 
+    it('closes the dialog via the top close icon button', () => {
+        const block = makeSpawnBlock()
+
+        renderWithProviders(<CodexSubagentPreviewCard block={block} />)
+
+        fireEvent.click(screen.getByRole('button', { name: /Subagent conversation — Pauli · agent-1/i }))
+        expect(screen.getByRole('link', { name: 'repo' })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }))
+
+        expect(screen.queryByRole('link', { name: 'repo' })).not.toBeInTheDocument()
+    })
+
     it('marks CodexSpawnAgent children for preview rendering instead of inline expansion', () => {
         const block = makeSpawnBlock()
         expect(getToolChildRenderMode(block)).toBe('codex-subagent-preview')

@@ -75,19 +75,45 @@ function removeActiveAgents(activeAgentIds: string[], targets: string[]): string
 }
 
 export function annotateCodexSidechains(messages: NormalizedMessage[]): NormalizedMessage[] {
+    // Pass 1: Identify which spawn calls have valid results (with agent_id)
     const toolNameByToolUseId = new Map<string, string>()
-    const agentIdToSpawnToolUseId = new Map<string, string>()
-    let activeAgentIds: string[] = []
-
-    const result: NormalizedMessage[] = []
-
     for (const message of messages) {
         for (const toolCall of getToolCallBlocks(message)) {
             toolNameByToolUseId.set(toolCall.id, toolCall.name)
         }
+    }
+    const validSpawnToolUseIds = new Set<string>()
+    for (const message of messages) {
+        for (const result of getToolResultBlocks(message)) {
+            const toolName = toolNameByToolUseId.get(result.tool_use_id)
+            if (toolName !== 'CodexSpawnAgent') continue
+            if (!isObject(result.content)) continue
+            const agentId = typeof result.content.agent_id === 'string' ? result.content.agent_id : null
+            if (agentId && agentId.length > 0) {
+                validSpawnToolUseIds.add(result.tool_use_id)
+            }
+        }
+    }
+
+    // Pass 2: Annotate
+    const agentIdToSpawnToolUseId = new Map<string, string>()
+    let activeAgentIds: string[] = []
+    let pendingSpawnToolUseId: string | null = null
+
+    const result: NormalizedMessage[] = []
+
+    for (const message of messages) {
+        let hasCodexSpawnToolCall = false
+        for (const toolCall of getToolCallBlocks(message)) {
+            if (toolCall.name === 'CodexSpawnAgent' && validSpawnToolUseIds.has(toolCall.id)) {
+                pendingSpawnToolUseId = toolCall.id
+                hasCodexSpawnToolCall = true
+            }
+        }
 
         const spawn = extractSpawnAgentId(message, toolNameByToolUseId)
         if (spawn) {
+            pendingSpawnToolUseId = null
             agentIdToSpawnToolUseId.set(spawn.agentId, spawn.spawnToolUseId)
             activeAgentIds = removeActiveAgents(activeAgentIds, [spawn.agentId])
             activeAgentIds.push(spawn.agentId)
@@ -103,7 +129,10 @@ export function annotateCodexSidechains(messages: NormalizedMessage[]): Normaliz
         }
 
         const activeAgentId = activeAgentIds.at(-1) ?? null
-        const activeSpawnToolUseId = activeAgentId ? agentIdToSpawnToolUseId.get(activeAgentId) ?? null : null
+        let activeSpawnToolUseId = activeAgentId ? agentIdToSpawnToolUseId.get(activeAgentId) ?? null : null
+        if (!activeSpawnToolUseId && pendingSpawnToolUseId && !hasCodexSpawnToolCall) {
+            activeSpawnToolUseId = pendingSpawnToolUseId
+        }
         if (activeSpawnToolUseId !== null && messageLooksLikeInlineChildConversation(message)) {
             result.push({
                 ...message,

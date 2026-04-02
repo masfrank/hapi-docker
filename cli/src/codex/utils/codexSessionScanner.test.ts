@@ -521,6 +521,83 @@ describe('codexSessionScanner', () => {
         expect(events[0].type).toBe('response_item');
     });
 
+    it('links child transcripts in non-explicit live session path', async () => {
+        const parentSessionId = 'parent-live-1';
+        const parentToolCallId = 'spawn-live-1';
+        const childSessionId = 'child-live-1';
+        const parentFile = join(sessionsDir, `codex-${parentSessionId}.jsonl`);
+        const childFile = join(sessionsDir, `codex-${childSessionId}.jsonl`);
+
+        await writeFile(
+            parentFile,
+            JSON.stringify({ type: 'session_meta', payload: { id: parentSessionId } }) + '\n'
+        );
+
+        scanner = await createCodexSessionScanner({
+            sessionId: parentSessionId,
+            onEvent: (event) => events.push(event)
+        });
+
+        await wait(200);
+
+        await appendFile(
+            parentFile,
+            [
+                JSON.stringify({
+                    type: 'response_item',
+                    payload: { type: 'function_call', name: 'spawn_agent', call_id: parentToolCallId, arguments: '{"message":"delegate"}' }
+                }),
+                JSON.stringify({
+                    type: 'response_item',
+                    payload: {
+                        type: 'function_call_output',
+                        call_id: parentToolCallId,
+                        output: JSON.stringify({ agent_id: childSessionId, nickname: 'child' })
+                    }
+                })
+            ].join('\n') + '\n'
+        );
+
+        await wait(2500);
+
+        await writeFile(
+            childFile,
+            [
+                JSON.stringify({ type: 'session_meta', payload: { id: childSessionId } }),
+                JSON.stringify({
+                    type: 'response_item',
+                    payload: {
+                        type: 'function_call_output',
+                        call_id: 'bootstrap-1',
+                        output: 'You are the newly spawned agent. The prior conversation history was forked from your parent agent. Treat the next user message as your new task, and use the forked history only as background context.'
+                    }
+                }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'task_started', turn_id: 'child-turn-1' } }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'child prompt live' } }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: 'child answer live' } })
+            ].join('\n') + '\n'
+        );
+
+        await wait(4500);
+
+        const childUserEvent = events.find((event) => (event.payload as Record<string, unknown>)?.message === 'child prompt live');
+        expect(childUserEvent).toBeDefined();
+        expect((childUserEvent as Record<string, unknown>).hapiSidechain).toEqual({ parentToolCallId });
+
+        const childAnswerEvent = events.find((event) => (event.payload as Record<string, unknown>)?.message === 'child answer live');
+        expect(childAnswerEvent).toBeDefined();
+        expect((childAnswerEvent as Record<string, unknown>).hapiSidechain).toEqual({ parentToolCallId });
+
+        // Parent spawn call should not have sidechain metadata
+        const spawnCall = events.find((event) =>
+            event.type === 'response_item'
+            && (event.payload as Record<string, unknown>)?.type === 'function_call'
+            && (event.payload as Record<string, unknown>)?.call_id === parentToolCallId
+        );
+        expect(spawnCall).toBeDefined();
+        expect((spawnCall as Record<string, unknown>).hapiSidechain).toBeUndefined();
+    }, 15000);
+
     it('does not adopt a reused session when first fresh matching activity is ambiguous', async () => {
         const targetCwd = '/data/github/happy/hapi';
         const startupTimestampMs = Date.now();

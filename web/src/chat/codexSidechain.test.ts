@@ -175,4 +175,21 @@ describe('annotateCodexSidechains', () => {
         expect(result[6]).toMatchObject({ isSidechain: true, sidechainKey: 'spawn-1' })
         expect(result[7]).toMatchObject({ isSidechain: false })
     })
+
+    it('marks live inline child messages after a valid spawn call before the spawn result lands', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('spawn-1', 'CodexSpawnAgent', { message: 'Delegate task' }, 1),
+            userText('child-user', 'live child prompt', 2),
+            agentText('child-agent', 'live child answer', 3),
+            agentToolResult('spawn-1', { agent_id: 'agent-1', nickname: 'Pauli' }, 4),
+            agentToolCall('wait-1', 'CodexWaitAgent', { targets: ['agent-1'] }, 5)
+        ]
+
+        const result = annotateCodexSidechains(messages)
+
+        expect(result[1]).toMatchObject({ isSidechain: true, sidechainKey: 'spawn-1' })
+        expect(result[2]).toMatchObject({ isSidechain: true, sidechainKey: 'spawn-1' })
+        expect(result[3]).toMatchObject({ isSidechain: false })
+        expect(result[4]).toMatchObject({ isSidechain: false })
+    })
 })

@@ -172,6 +172,9 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
             }
             return this.getCandidateForFile(filePath) !== null;
         }
+        if (this.linkedChildFilePaths.has(normalizePath(filePath))) {
+            return true;
+        }
         const fileSessionId = this.sessionIdByFile.get(filePath);
         if (fileSessionId) {
             return fileSessionId === this.activeSessionId;
@@ -259,6 +262,11 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
         if (emittedForFile > 0) {
             logger.debug(`[CODEX_SESSION_SCANNER] Emitted ${emittedForFile} new events from ${filePath}`);
         }
+        const normalizedFilePath = normalizePath(filePath);
+        if (!this.linkedChildFilePaths.has(normalizedFilePath)) {
+            await this.linkChildTranscriptsFromParentEntries(stats.entries);
+            await this.linkPendingChildTranscripts();
+        }
     }
 
     protected async afterScan(): Promise<void> {
@@ -319,6 +327,10 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
             return normalizedFilePath !== this.explicitResolvedFilePath && !this.linkedChildFilePaths.has(normalizedFilePath);
         }
         if (!this.activeSessionId) {
+            return false;
+        }
+        const normalizedFilePath = normalizePath(filePath);
+        if (this.linkedChildFilePaths.has(normalizedFilePath)) {
             return false;
         }
         const fileSessionId = this.sessionIdByFile.get(filePath);

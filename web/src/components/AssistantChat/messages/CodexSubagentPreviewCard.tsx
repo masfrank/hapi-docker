@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import type { ToolCallBlock } from '@/chat/types'
 import { isObject } from '@hapi/protocol'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { getEventPresentation } from '@/chat/presentation'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
@@ -127,6 +127,14 @@ function OpenIcon() {
     return (
         <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
+
+function CloseIcon() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
     )
 }
@@ -304,37 +312,49 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                     </Card>
                 </button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{dialogTitle}</DialogTitle>
-                    <DialogDescription>
-                        Nested child transcript for this Codex subagent run.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-3 pr-1">
-                    <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-secondary-bg)]/40 px-3 py-2 text-sm">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getLifecycleStatusClass(lifecycle.status)}`}>
-                                {getLifecycleStatusLabel(lifecycle.status)}
-                            </span>
-                            {lifecycle.agentId ? <span className="font-mono text-xs text-[var(--app-hint)]">Agent ID: {lifecycle.agentId}</span> : null}
-                            {actionCount > 0 ? <span className="font-mono text-xs text-[var(--app-hint)]">{actionCount} actions</span> : null}
+            <DialogContent className="w-[calc(100vw-32px)] max-w-3xl max-h-[calc(100vh-5rem)] overflow-hidden p-0 sm:max-h-[85vh]">
+                <DialogClose
+                    className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--app-border)] bg-[var(--app-bg)]/95 text-[var(--app-hint)] shadow-sm transition-colors hover:text-[var(--app-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
+                    aria-label="Close dialog"
+                >
+                    <CloseIcon />
+                </DialogClose>
+                <div className="flex max-h-[calc(100vh-5rem)] flex-col sm:max-h-[85vh]">
+                    <DialogHeader className="sticky top-0 z-[1] border-b border-[var(--app-border)] bg-[var(--app-secondary-bg)] px-4 pb-3 pt-4 pr-14">
+                        <DialogTitle>{dialogTitle}</DialogTitle>
+                        <DialogDescription>
+                            Nested child transcript for this Codex subagent run.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto px-4 py-3">
+                        <div className="flex flex-col gap-3 pr-1">
+                            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-secondary-bg)]/40 px-3 py-2 text-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getLifecycleStatusClass(lifecycle.status)}`}>
+                                        {getLifecycleStatusLabel(lifecycle.status)}
+                                    </span>
+                                    {lifecycle.agentId ? <span className="font-mono text-xs text-[var(--app-hint)]">Agent ID: {lifecycle.agentId}</span> : null}
+                                    {actionCount > 0 ? <span className="font-mono text-xs text-[var(--app-hint)]">{actionCount} actions</span> : null}
+                                </div>
+                                {lifecycle.latestText ? (
+                                    <div className="mt-2 whitespace-pre-wrap break-words text-sm">
+                                        {lifecycle.latestText}
+                                    </div>
+                                ) : summary.prompt ? (
+                                    <div className="mt-2 whitespace-pre-wrap break-words text-sm">
+                                        {summary.prompt}
+                                    </div>
+                                ) : null}
+                            </div>
+                            <SubagentBlockList blocks={dialogBlocks} />
                         </div>
-                        {lifecycle.latestText ? (
-                            <div className="mt-2 whitespace-pre-wrap break-words text-sm">
-                                {lifecycle.latestText}
-                            </div>
-                        ) : summary.prompt ? (
-                            <div className="mt-2 whitespace-pre-wrap break-words text-sm">
-                                {summary.prompt}
-                            </div>
-                        ) : null}
                     </div>
-                    <SubagentBlockList blocks={dialogBlocks} />
-                    <div className="flex justify-end pt-2">
-                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                            Close
-                        </Button>
+                    <div className="sticky bottom-0 border-t border-[var(--app-border)] bg-[var(--app-secondary-bg)]/95 px-4 py-3">
+                        <div className="flex justify-end">
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                                Close
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </DialogContent>
