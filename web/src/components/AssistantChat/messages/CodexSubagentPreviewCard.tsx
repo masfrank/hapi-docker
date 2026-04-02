@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import type { ToolCallBlock } from '@/chat/types'
 import { isObject } from '@hapi/protocol'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { getEventPresentation } from '@/chat/presentation'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
@@ -29,8 +29,8 @@ function getSpawnSummary(block: ToolCallBlock): {
     const countLabel = `${block.children.length} nested block${block.children.length === 1 ? '' : 's'}`
 
     return {
-        title: 'Subagent conversation',
-        subtitle,
+        title: subtitle ?? 'Subagent',
+        subtitle: null,
         detail: countLabel,
         prompt: prompt ?? null,
         promptPreview: prompt ? truncate(prompt, 72) : null
@@ -124,14 +124,6 @@ function OpenIcon() {
     return (
         <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    )
-}
-
-function CloseIcon() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
     )
 }
@@ -243,7 +235,7 @@ function SubagentBlockList(props: { blocks: ToolCallBlock['children'] }) {
 export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
     const summary = getSpawnSummary(props.block)
     const lifecycle = getLifecycleSnapshot(props.block)
-    const dialogTitle = summary.subtitle ? `${summary.title} — ${summary.subtitle}` : summary.title
+    const dialogTitle = summary.title
     const actionCount = lifecycle.actions.length
     const [open, setOpen] = useState(false)
     const dialogBlocks = useMemo(
@@ -259,30 +251,23 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                     className="w-full text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                     aria-label={dialogTitle}
                 >
-                    <Card className="overflow-hidden border-dashed bg-[var(--app-secondary-bg)]/50 shadow-sm transition-colors hover:border-[var(--app-link)]">
-                        <CardHeader className="p-3 pb-2">
+                    <Card className="overflow-hidden border bg-[var(--app-secondary-bg)] shadow-sm transition-colors hover:border-[var(--app-link)]">
+                        <CardHeader className="p-3">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <CardTitle className="text-sm font-medium leading-tight">
+                                        <CardTitle className="text-sm font-medium leading-tight text-[var(--app-fg)]">
                                             {summary.title}
                                         </CardTitle>
                                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getLifecycleStatusClass(lifecycle.status)}`}>
                                             {getLifecycleStatusLabel(lifecycle.status)}
                                         </span>
                                     </div>
-                                    {summary.subtitle ? (
-                                        <CardDescription className="mt-1 text-xs text-[var(--app-hint)] break-words">
-                                            {summary.subtitle}
-                                        </CardDescription>
-                                    ) : null}
                                 </div>
                                 <div className="shrink-0 text-[var(--app-hint)]">
                                     <OpenIcon />
                                 </div>
                             </div>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-0">
                             <div className="flex flex-col gap-2">
                                 {lifecycle.latestText ? (
                                     <div className="rounded-lg border border-[var(--app-border)]/70 bg-[var(--app-bg)]/80 px-3 py-2 text-sm text-[var(--app-fg)]">
@@ -305,24 +290,18 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                                     ) : null}
                                 </div>
                             </div>
-                        </CardContent>
+                        </CardHeader>
                     </Card>
                 </button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl">
-                <DialogClose
-                    className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--app-border)] bg-[var(--app-bg)]/95 text-[var(--app-hint)] shadow-sm transition-colors hover:text-[var(--app-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
-                    aria-label="Close dialog"
-                >
-                    <CloseIcon />
-                </DialogClose>
-                <DialogHeader className="pr-12">
+            <DialogContent className="max-w-4xl p-4 sm:p-5">
+                <DialogHeader>
                         <DialogTitle>{dialogTitle}</DialogTitle>
                         <DialogDescription>
                             Nested child transcript for this Codex subagent run.
                         </DialogDescription>
                 </DialogHeader>
-                <div className="mt-3 max-h-[75vh] overflow-auto">
+                <div className="mt-3 max-h-[70vh] overflow-auto overscroll-contain pr-1">
                     <div className="flex flex-col gap-3 pr-1">
                         <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-secondary-bg)]/40 px-3 py-2 text-sm">
                             <div className="flex flex-wrap items-center gap-2">
