@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
 import type { ToolCallBlock } from '@/chat/types'
 import { extractTextFromResult, getMutationResultRenderMode, getToolResultViewComponent, toolResultViewRegistry } from '@/components/ToolCard/views/_results'
 import { I18nProvider } from '@/lib/i18n-context'
@@ -45,6 +46,10 @@ function renderWithProviders(ui: React.ReactElement) {
         </I18nProvider>
     )
 }
+
+afterEach(() => {
+    cleanup()
+})
 
 describe('extractTextFromResult', () => {
     it('returns string directly', () => {
@@ -151,6 +156,16 @@ describe('getToolResultViewComponent registry', () => {
         expect(toolResultViewRegistry.CodexCloseAgent).toBeDefined()
     })
 
+    it('routes Codex subagent tools away from GenericResultView', () => {
+        const generic = getToolResultViewComponent('SomeUnknownTool')
+
+        expect(getToolResultViewComponent('CodexWriteStdin')).not.toBe(generic)
+        expect(getToolResultViewComponent('CodexSpawnAgent')).not.toBe(generic)
+        expect(getToolResultViewComponent('CodexWaitAgent')).not.toBe(generic)
+        expect(getToolResultViewComponent('CodexSendInput')).not.toBe(generic)
+        expect(getToolResultViewComponent('CodexCloseAgent')).not.toBe(generic)
+    })
+
     it('routes Claude parity tool names to expected result views', () => {
         expect(getToolResultViewComponent('BashOutput')).toBe(getToolResultViewComponent('Bash'))
         expect(getToolResultViewComponent('KillBash')).toBe(getToolResultViewComponent('SomeUnknownTool'))
@@ -192,5 +207,98 @@ describe('Codex alias result rendering', () => {
         )
 
         expect(screen.getByText(/Ship web parity/)).toBeInTheDocument()
+    })
+
+    it('renders CodexWriteStdin sent input preview', () => {
+        const View = getToolResultViewComponent('CodexWriteStdin')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexWriteStdin',
+                    { output: 'polled output' },
+                    { session_id: 7, chars: 'ls\n' }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText(/Sent:/)).toBeInTheDocument()
+        expect(screen.getByText(/ls/)).toBeInTheDocument()
+    })
+
+    it('renders CodexSpawnAgent result metadata', () => {
+        const View = getToolResultViewComponent('CodexSpawnAgent')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexSpawnAgent',
+                    { agent_id: 'agent-1', nickname: 'Pauli' },
+                    { agent_type: 'default', model: 'gpt-5.4-mini', message: 'Search GitHub trending' }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText('Agent ID: agent-1')).toBeInTheDocument()
+        expect(screen.getByText('Nickname: Pauli')).toBeInTheDocument()
+        expect(screen.getByText('Prompt: Search GitHub trending')).toBeInTheDocument()
+    })
+
+    it('renders CodexWaitAgent target and timeout details', () => {
+        const View = getToolResultViewComponent('CodexWaitAgent')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexWaitAgent',
+                    { status: 'completed', text: 'agent finished' },
+                    { targets: ['agent-1'], timeout_ms: 30000 }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText('Targets: agent-1')).toBeInTheDocument()
+        expect(screen.getByText('Timeout: 30000')).toBeInTheDocument()
+        expect(screen.getByText('agent finished')).toBeInTheDocument()
+    })
+
+    it('renders CodexSendInput target and message preview', () => {
+        const View = getToolResultViewComponent('CodexSendInput')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexSendInput',
+                    { message: 'delivered' },
+                    { target: 'agent-1', message: 'continue with tests', interrupt: true }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText(/Target: agent-1/)).toBeInTheDocument()
+        expect(screen.getByText(/continue with tests/)).toBeInTheDocument()
+        expect(screen.getByText(/Interrupt/)).toBeInTheDocument()
+    })
+
+    it('renders CodexCloseAgent target details', () => {
+        const View = getToolResultViewComponent('CodexCloseAgent')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexCloseAgent',
+                    { status: 'closed' },
+                    { target: 'agent-1' }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText('Target: agent-1')).toBeInTheDocument()
+        expect(screen.getByText(/closed/)).toBeInTheDocument()
     })
 })

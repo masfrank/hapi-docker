@@ -220,7 +220,8 @@ export const knownTools: Record<string, {
                 : []
             const timeout = getInputTextAny(opts.input, ['timeout_ms', 'timeout'])
             const parts: string[] = []
-            if (targets.length > 0) parts.push(`${targets.length} target${targets.length === 1 ? '' : 's'}`)
+            if (targets.length === 1) parts.push(`target: ${targets[0]}`)
+            else if (targets.length > 1) parts.push(`${targets.length} targets`)
             if (timeout) parts.push(`timeout: ${timeout}`)
             return parts.length > 0 ? parts.join(' • ') : null
         },
