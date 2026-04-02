@@ -86,6 +86,8 @@ function getEventKey(event: AgentEvent): string {
             return `title:${event.title}`
         case 'limit-reached':
             return `limit:${event.endsAt}`
+        case 'limit-warning':
+            return `limit-warning:${event.endsAt}:${(event as Record<string, unknown>).utilization}:${(event as Record<string, unknown>).limitType}`
         case 'ready':
             return 'ready'
         default:
