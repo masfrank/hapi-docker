@@ -1,8 +1,12 @@
 import type { AgentEvent } from '@/chat/types'
 
-export function formatUnixTimestamp(value: number): string {
+function normalizeTimestamp(value: number): Date {
     const ms = value < 1_000_000_000_000 ? value * 1000 : value
-    const date = new Date(ms)
+    return new Date(ms)
+}
+
+export function formatUnixTimestamp(value: number): string {
+    const date = normalizeTimestamp(value)
     if (Number.isNaN(date.getTime())) return String(value)
     return date.toLocaleString()
 }
