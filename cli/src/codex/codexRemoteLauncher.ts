@@ -567,6 +567,7 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
         };
 
         while (!this.shouldExit) {
+            let explicitResumeFailureThreadId: string | null = null;
             logActiveHandles('loop-top');
             let message: QueuedMessage | null = pending;
             pending = null;
@@ -603,24 +604,23 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     let threadId: string | null = null;
 
                     if (resumeCandidate) {
-                        try {
-                            const resumeResponse = await appServerClient.resumeThread({
-                                threadId: resumeCandidate,
-                                ...threadParams
-                            }, {
-                                signal: this.abortController.signal
-                            });
-                            const resumeRecord = asRecord(resumeResponse);
-                            const resumeThread = resumeRecord ? asRecord(resumeRecord.thread) : null;
-                            threadId = asString(resumeThread?.id) ?? resumeCandidate;
-                            applyResolvedModel(resumeRecord?.model);
-                            logger.debug(`[Codex] Resumed app-server thread ${threadId}`);
-                        } catch (error) {
-                            logger.warn(`[Codex] Failed to resume app-server thread ${resumeCandidate}, starting new thread`, error);
+                        explicitResumeFailureThreadId = resumeCandidate;
+                        const resumeResponse = await appServerClient.resumeThread({
+                            threadId: resumeCandidate,
+                            ...threadParams
+                        }, {
+                            signal: this.abortController.signal
+                        });
+                        const resumeRecord = asRecord(resumeResponse);
+                        const resumeThread = resumeRecord ? asRecord(resumeRecord.thread) : null;
+                        threadId = asString(resumeThread?.id) ?? resumeCandidate;
+                        applyResolvedModel(resumeRecord?.model);
+                        if (!threadId) {
+                            throw new Error('app-server thread/resume did not return thread.id');
                         }
-                    }
-
-                    if (!threadId) {
+                        explicitResumeFailureThreadId = null;
+                        logger.debug(`[Codex] Resumed app-server thread ${threadId}`);
+                    } else {
                         const threadResponse = await appServerClient.startThread(threadParams, {
                             signal: this.abortController.signal
                         });
@@ -631,10 +631,6 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                         if (!threadId) {
                             throw new Error('app-server thread/start did not return thread.id');
                         }
-                    }
-
-                    if (!threadId) {
-                        throw new Error('app-server resume did not return thread.id');
                     }
 
                     this.currentThreadId = threadId;
@@ -673,16 +669,25 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     allowAnonymousTerminalEvent = true;
                 }
             } catch (error) {
-                logger.warn('Error in codex session:', error);
                 const isAbortError = error instanceof Error && error.name === 'AbortError';
                 turnInFlight = false;
                 allowAnonymousTerminalEvent = false;
                 this.currentTurnId = null;
 
                 if (isAbortError) {
+                    logger.warn('Error in codex session:', error);
                     messageBuffer.addMessage('Aborted by user', 'status');
                     session.sendSessionEvent({ type: 'message', message: 'Aborted by user' });
+                } else if (explicitResumeFailureThreadId) {
+                    logger.warn(`[Codex] Explicit remote resume failed for thread ${explicitResumeFailureThreadId}:`, error);
+                    const failureMessage = `Explicit remote resume failed for thread ${explicitResumeFailureThreadId}`;
+                    messageBuffer.addMessage(failureMessage, 'status');
+                    session.sendSessionEvent({ type: 'message', message: failureMessage });
+                    this.currentTurnId = null;
+                    this.currentThreadId = null;
+                    hasThread = false;
                 } else {
+                    logger.warn('Error in codex session:', error);
                     messageBuffer.addMessage('Process exited unexpectedly', 'status');
                     session.sendSessionEvent({ type: 'message', message: 'Process exited unexpectedly' });
                     this.currentTurnId = null;
