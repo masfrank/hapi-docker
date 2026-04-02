@@ -237,7 +237,31 @@ describe('AppServerEventConverter', () => {
             }
         });
 
-        expect(events).toEqual([]);
+        expect(events).toEqual([{
+            type: 'subagent_title_change',
+            title: 'child title',
+            parent_tool_call_id: 'spawn-1'
+        }]);
+    });
+
+    it('emits root session title changes for parent-thread hapi change_title calls', () => {
+        const converter = new AppServerEventConverter();
+
+        const events = converter.handleNotification('item/completed', {
+            threadId: 'parent-thread',
+            item: {
+                id: 'title-1',
+                type: 'mcpToolCall',
+                server: 'hapi',
+                tool: 'change_title',
+                arguments: { title: 'root title' }
+            }
+        });
+
+        expect(events).toEqual([{
+            type: 'session_title_change',
+            title: 'root title'
+        }]);
     });
 
     it('maps reasoning deltas', () => {

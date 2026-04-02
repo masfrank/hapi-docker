@@ -68,6 +68,10 @@ function messageLooksLikeInlineChildConversation(message: NormalizedMessage): bo
     return sawNestableContent
 }
 
+function messageContainsSpawnToolCall(message: NormalizedMessage): boolean {
+    return getToolCallBlocks(message).some((toolCall) => toolCall.name === 'CodexSpawnAgent')
+}
+
 function removeActiveAgents(activeAgentIds: string[], targets: string[]): string[] {
     if (targets.length === 0) return activeAgentIds
     const closed = new Set(targets)
@@ -133,7 +137,11 @@ export function annotateCodexSidechains(messages: NormalizedMessage[]): Normaliz
         if (!activeSpawnToolUseId && pendingSpawnToolUseId && !hasCodexSpawnToolCall) {
             activeSpawnToolUseId = pendingSpawnToolUseId
         }
-        if (activeSpawnToolUseId !== null && messageLooksLikeInlineChildConversation(message)) {
+        if (
+            activeSpawnToolUseId !== null
+            && !messageContainsSpawnToolCall(message)
+            && messageLooksLikeInlineChildConversation(message)
+        ) {
             result.push({
                 ...message,
                 isSidechain: true,

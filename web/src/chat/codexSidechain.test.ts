@@ -192,4 +192,18 @@ describe('annotateCodexSidechains', () => {
         expect(result[3]).toMatchObject({ isSidechain: false })
         expect(result[4]).toMatchObject({ isSidechain: false })
     })
+
+    it('does not nest a later CodexSpawnAgent tool call under the currently active child', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('spawn-1', 'CodexSpawnAgent', { message: 'First child' }, 1),
+            agentToolResult('spawn-1', { agent_id: 'agent-1' }, 2),
+            agentToolCall('spawn-2', 'CodexSpawnAgent', { message: 'Second child' }, 3),
+            agentToolResult('spawn-2', { agent_id: 'agent-2' }, 4)
+        ]
+
+        const result = annotateCodexSidechains(messages)
+
+        expect(result[2]).toMatchObject({ isSidechain: false })
+        expect(result[3]).toMatchObject({ isSidechain: false })
+    })
 })

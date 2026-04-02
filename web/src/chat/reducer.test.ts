@@ -140,4 +140,31 @@ describe('reduceChatBlocks', () => {
             ])
         )
     })
+
+    it('does not mark unresolved sibling spawn blocks completed from a partial multi-target wait result', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('msg-spawn-1-call', 'spawn-1', 'CodexSpawnAgent', { message: 'First child' }, 1),
+            agentToolResult('msg-spawn-1-result', 'spawn-1', { agent_id: 'agent-1', nickname: 'First' }, 2),
+            agentToolCall('msg-spawn-2-call', 'spawn-2', 'CodexSpawnAgent', { message: 'Second child' }, 3),
+            agentToolResult('msg-spawn-2-result', 'spawn-2', { agent_id: 'agent-2', nickname: 'Second' }, 4),
+            agentToolCall('msg-wait-call', 'wait-1', 'CodexWaitAgent', { targets: ['agent-1', 'agent-2'] }, 5),
+            agentToolResult('msg-wait-result', 'wait-1', {
+                statuses: {
+                    'agent-1': {
+                        status: 'completed',
+                        message: 'done'
+                    }
+                }
+            }, 6)
+        ]
+
+        const reduced = reduceChatBlocks(messages, null)
+        const spawnBlocks = reduced.blocks.filter(
+            (block): block is ToolCallBlock => block.kind === 'tool-call' && block.tool.name === 'CodexSpawnAgent'
+        )
+
+        expect(spawnBlocks).toHaveLength(2)
+        expect(spawnBlocks.find((block) => block.tool.id === 'spawn-1')?.lifecycle?.status).toBe('completed')
+        expect(spawnBlocks.find((block) => block.tool.id === 'spawn-2')?.lifecycle?.status).toBe('running')
+    })
 })

@@ -506,8 +506,26 @@ export class AppServerEventConverter {
                 const server = asString(item.server);
                 const tool = asString(item.tool);
                 const parentToolCallId = threadId ? this.childThreadIdToParentToolCallId.get(threadId) : null;
+                const title = asString(asRecord(item.arguments)?.title);
 
-                if (server === 'hapi' && tool === 'change_title' && parentToolCallId) {
+                if (server === 'hapi' && tool === 'change_title') {
+                    if (parentToolCallId) {
+                        if (title) {
+                            events.push({
+                                type: 'subagent_title_change',
+                                title,
+                                parent_tool_call_id: parentToolCallId
+                            });
+                        }
+                        return events;
+                    }
+
+                    if (title) {
+                        events.push({
+                            type: 'session_title_change',
+                            title
+                        });
+                    }
                     return events;
                 }
             }

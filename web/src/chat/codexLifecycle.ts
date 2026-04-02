@@ -79,6 +79,20 @@ function stringifyTargetList(value: unknown): string[] {
     return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
 }
 
+function extractResolvedWaitTargets(block: ToolCallBlock): string[] | null {
+    if (block.tool.name !== 'CodexWaitAgent') {
+        return null
+    }
+
+    const result = isObject(block.tool.result) ? block.tool.result : null
+    if (!result || !isObject(result.statuses)) {
+        return null
+    }
+
+    const resolvedTargets = Object.keys(result.statuses).filter((target) => target.length > 0)
+    return resolvedTargets.length > 0 ? resolvedTargets : null
+}
+
 function extractControlTargets(block: ToolCallBlock): string[] {
     const input = isObject(block.tool.input) ? block.tool.input : null
     if (!input) return []
@@ -183,7 +197,7 @@ function appendAction(lifecycle: CodexAgentLifecycle, action: LifecycleActionTyp
 function foldControlBlock(block: ToolCallBlock, spawnByAgentId: Map<string, ToolCallBlock>): boolean {
     if (!CONTROL_TOOL_NAMES.has(block.tool.name)) return false
 
-    const targets = extractControlTargets(block)
+    const targets = extractResolvedWaitTargets(block) ?? extractControlTargets(block)
     const matchedSpawnBlocks = targets
         .map((target) => spawnByAgentId.get(target))
         .filter((spawn): spawn is ToolCallBlock => Boolean(spawn))

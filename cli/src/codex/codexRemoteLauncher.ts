@@ -228,6 +228,7 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
         let clearReadyAfterTurnTimer: (() => void) | null = null;
         let turnInFlight = false;
         let allowAnonymousTerminalEvent = false;
+        let lastRootSessionTitle: string | null = null;
 
         const handleCodexEvent = (msg: Record<string, unknown>) => {
             const msgType = asString(msg.type);
@@ -240,6 +241,27 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                 if (threadId) {
                     this.currentThreadId = threadId;
                     session.onSessionFound(threadId);
+                }
+                return;
+            }
+
+            if (msgType === 'session_title_change') {
+                const title = asString(msg.title);
+                if (title) {
+                    lastRootSessionTitle = title;
+                }
+                return;
+            }
+
+            if (msgType === 'subagent_title_change') {
+                if (lastRootSessionTitle) {
+                    session.client.updateMetadata((metadata) => ({
+                        ...metadata,
+                        summary: {
+                            text: lastRootSessionTitle!,
+                            updatedAt: Date.now()
+                        }
+                    }));
                 }
                 return;
             }
