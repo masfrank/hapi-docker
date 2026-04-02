@@ -1,12 +1,14 @@
-import type { ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { ToolCallBlock } from '@/chat/types'
 import { isObject } from '@hapi/protocol'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { getEventPresentation } from '@/chat/presentation'
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { ToolCard } from '@/components/ToolCard/ToolCard'
 import { useHappyChatContext } from '@/components/AssistantChat/context'
+import { Button } from '@/components/ui/button'
 import { getInputStringAny, truncate } from '@/lib/toolInputUtils'
 
 function getSpawnSummary(block: ToolCallBlock): {
@@ -129,6 +131,29 @@ function OpenIcon() {
     )
 }
 
+function normalizePromptForCompare(text: string): string {
+    return text.replace(/\s+/g, ' ').trim()
+}
+
+function dedupeLeadingPrompt(
+    blocks: ToolCallBlock['children'],
+    prompt: string | null
+): ToolCallBlock['children'] {
+    if (!prompt || blocks.length === 0) return blocks
+    const [first, ...rest] = blocks
+    if (first.kind !== 'user-text') return blocks
+
+    const promptNorm = normalizePromptForCompare(prompt)
+    const firstNorm = normalizePromptForCompare(first.text)
+    if (!promptNorm || !firstNorm) return blocks
+
+    if (promptNorm === firstNorm || promptNorm.includes(firstNorm) || firstNorm.includes(promptNorm)) {
+        return rest
+    }
+
+    return blocks
+}
+
 function SubagentBlockList(props: { blocks: ToolCallBlock['children'] }) {
     const ctx = useHappyChatContext()
 
@@ -143,9 +168,17 @@ function SubagentBlockList(props: { blocks: ToolCallBlock['children'] }) {
                     )
                 }
 
-                if (block.kind === 'agent-text' || block.kind === 'agent-reasoning') {
+                if (block.kind === 'agent-text') {
                     return (
-                        <div key={`${block.kind}:${block.id}`} className="px-1 whitespace-pre-wrap break-words">
+                        <div key={`${block.kind}:${block.id}`} className="px-1">
+                            <MarkdownRenderer content={block.text} />
+                        </div>
+                    )
+                }
+
+                if (block.kind === 'agent-reasoning') {
+                    return (
+                        <div key={`${block.kind}:${block.id}`} className="px-1 whitespace-pre-wrap break-words text-[var(--app-hint)]">
                             {block.text}
                         </div>
                     )
@@ -207,9 +240,14 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
     const lifecycle = getLifecycleSnapshot(props.block)
     const dialogTitle = summary.subtitle ? `${summary.title} — ${summary.subtitle}` : summary.title
     const actionCount = lifecycle.actions.length
+    const [open, setOpen] = useState(false)
+    const dialogBlocks = useMemo(
+        () => dedupeLeadingPrompt(props.block.children, summary.prompt),
+        [props.block.children, summary.prompt]
+    )
 
     return (
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <button
                     type="button"
@@ -292,7 +330,12 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                             </div>
                         ) : null}
                     </div>
-                    <SubagentBlockList blocks={props.block.children} />
+                    <SubagentBlockList blocks={dialogBlocks} />
+                    <div className="flex justify-end pt-2">
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                            Close
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import type { ToolCallBlock } from '@/chat/types'
@@ -8,7 +8,19 @@ import { HappyToolMessage } from '@/components/AssistantChat/messages/ToolMessag
 import { HappyChatProvider } from '@/components/AssistantChat/context'
 import { I18nProvider } from '@/lib/i18n-context'
 
+vi.mock('@/components/MarkdownRenderer', () => ({
+    MarkdownRenderer: ({ content }: { content: string }) => {
+        const linkMatch = content.match(/\[([^\]]+)\]\(([^)]+)\)/)
+        if (linkMatch) {
+            return <a href={linkMatch[2]}>{linkMatch[1]}</a>
+        }
+        return <div>{content}</div>
+    }
+}))
+
 function makeSpawnBlock(): ToolCallBlock {
+    const delegatedPrompt = 'Search GitHub trending repositories for React state tooling'
+
     return {
         kind: 'tool-call',
         id: 'spawn-block-1',
@@ -19,7 +31,7 @@ function makeSpawnBlock(): ToolCallBlock {
             name: 'CodexSpawnAgent',
             state: 'completed',
             input: {
-                message: 'Search GitHub trending repositories for React state tooling',
+                message: delegatedPrompt,
                 model: 'gpt-5.4-mini'
             },
             createdAt: 1,
@@ -48,7 +60,7 @@ function makeSpawnBlock(): ToolCallBlock {
                 id: 'child-user-1',
                 localId: null,
                 createdAt: 3,
-                text: 'child prompt',
+                text: delegatedPrompt,
                 meta: undefined
             },
             {
@@ -56,7 +68,7 @@ function makeSpawnBlock(): ToolCallBlock {
                 id: 'child-agent-1',
                 localId: null,
                 createdAt: 4,
-                text: 'child answer',
+                text: 'See [repo](https://github.com/example/repo)',
                 meta: undefined
             }
         ]
@@ -112,13 +124,12 @@ describe('CodexSubagentPreviewCard', () => {
         expect(screen.getByText('Waiting')).toBeInTheDocument()
         expect(screen.getByText(/Pauli/)).toBeInTheDocument()
         expect(screen.getByText(/Waiting for child agent to finish/)).toBeInTheDocument()
-        expect(screen.queryByText('child prompt')).not.toBeInTheDocument()
-        expect(screen.queryByText('child answer')).not.toBeInTheDocument()
+        expect(screen.queryByText('See [repo](https://github.com/example/repo)')).not.toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: /Subagent conversation — Pauli · agent-1/i }))
 
-        expect(screen.getByText('child prompt')).toBeInTheDocument()
-        expect(screen.getByText('child answer')).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: 'repo' })).toHaveAttribute('href', 'https://github.com/example/repo')
+        expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
     })
 
     it('renders HappyToolMessage as the lifecycle card for CodexSpawnAgent', () => {
@@ -138,12 +149,26 @@ describe('CodexSubagentPreviewCard', () => {
 
         expect(screen.getByText('Subagent conversation')).toBeInTheDocument()
         expect(screen.getByText('Waiting')).toBeInTheDocument()
-        expect(screen.queryByText('child prompt')).not.toBeInTheDocument()
+        expect(screen.queryByRole('link', { name: 'repo' })).not.toBeInTheDocument()
+        expect(screen.queryByText('Search GitHub trending repositories for React state tooling')).not.toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: /Subagent conversation — Pauli · agent-1/i }))
 
-        expect(screen.getByText('child prompt')).toBeInTheDocument()
-        expect(screen.getByText('child answer')).toBeInTheDocument()
+        expect(screen.queryByText('Search GitHub trending repositories for React state tooling')).not.toBeInTheDocument()
+        expect(screen.getByRole('link', { name: 'repo' })).toBeInTheDocument()
+    })
+
+    it('closes the dialog via the explicit close button', () => {
+        const block = makeSpawnBlock()
+
+        renderWithProviders(<CodexSubagentPreviewCard block={block} />)
+
+        fireEvent.click(screen.getByRole('button', { name: /Subagent conversation — Pauli · agent-1/i }))
+        expect(screen.getByRole('link', { name: 'repo' })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+        expect(screen.queryByRole('link', { name: 'repo' })).not.toBeInTheDocument()
     })
 
     it('marks CodexSpawnAgent children for preview rendering instead of inline expansion', () => {
