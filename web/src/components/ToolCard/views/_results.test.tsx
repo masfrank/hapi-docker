@@ -246,6 +246,70 @@ describe('Codex alias result rendering', () => {
         expect(screen.getByText('Prompt: Search GitHub trending')).toBeInTheDocument()
     })
 
+    it('renders CodexCloseAgent structured status instead of no output placeholder', () => {
+        const View = getToolResultViewComponent('CodexCloseAgent')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexCloseAgent',
+                    { status: 'closed' },
+                    { target: 'agent-9' }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText('Target: agent-9')).toBeInTheDocument()
+        expect(screen.queryByText('(no output)')).not.toBeInTheDocument()
+        expect(screen.getAllByText(/closed/).length).toBeGreaterThan(0)
+    })
+
+    it('renders CodexSendInput structured ack instead of no output placeholder', () => {
+        const View = getToolResultViewComponent('CodexSendInput')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexSendInput',
+                    { ok: true },
+                    { target: 'agent-4', message: 'continue' }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText('Target: agent-4')).toBeInTheDocument()
+        expect(screen.getByText('Message: continue')).toBeInTheDocument()
+        expect(screen.queryByText('(no output)')).not.toBeInTheDocument()
+        expect(screen.getAllByText(/true/).length).toBeGreaterThan(0)
+    })
+
+    it('renders CodexWaitAgent structured status map instead of no output placeholder', () => {
+        const View = getToolResultViewComponent('CodexWaitAgent')
+
+        renderWithProviders(
+            <View
+                block={makeToolBlock(
+                    'CodexWaitAgent',
+                    {
+                        statuses: {
+                            'agent-1': 'completed',
+                            'agent-2': 'running'
+                        }
+                    },
+                    { targets: ['agent-1', 'agent-2'], timeout_ms: 30000 }
+                )}
+                metadata={null}
+            />
+        )
+
+        expect(screen.getByText('Targets: agent-1, agent-2')).toBeInTheDocument()
+        expect(screen.queryByText('(no output)')).not.toBeInTheDocument()
+        expect(screen.getAllByText(/completed/).length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/running/).length).toBeGreaterThan(0)
+    })
+
     it('renders CodexWaitAgent target and timeout details', () => {
         const View = getToolResultViewComponent('CodexWaitAgent')
 
@@ -299,6 +363,6 @@ describe('Codex alias result rendering', () => {
         )
 
         expect(screen.getByText('Target: agent-1')).toBeInTheDocument()
-        expect(screen.getByText(/closed/)).toBeInTheDocument()
+        expect(screen.getAllByText(/closed/).length).toBeGreaterThan(0)
     })
 })

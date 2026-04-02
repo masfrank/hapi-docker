@@ -137,6 +137,22 @@ function renderText(text: string, opts: { mode: 'markdown' | 'code' | 'auto'; la
     return <MarkdownRenderer content={text} />
 }
 
+function renderCodexStructuredResult(
+    result: unknown,
+    state: ToolViewProps['block']['tool']['state']
+): React.ReactNode {
+    const text = extractTextFromResult(result)
+    if (text) {
+        return renderText(text, { mode: 'code', language: 'text' })
+    }
+
+    if (result !== null && result !== undefined && typeof result === 'object') {
+        return <CodeBlock code={safeStringify(result)} language="json" />
+    }
+
+    return <div className="text-sm text-[var(--app-hint)]">{placeholderForState(state)}</div>
+}
+
 function placeholderForState(state: ToolViewProps['block']['tool']['state']): string {
     if (state === 'pending') return 'Waiting for permission…'
     if (state === 'running') return 'Running…'
@@ -530,7 +546,6 @@ const CodexWriteStdinResultView: ToolViewComponent = (props: ToolViewProps) => {
     const result = props.block.tool.result
     const chars = input && typeof input.chars === 'string' ? input.chars : null
     const target = getInputString(props.block.tool.input, ['target', 'session_id', 'sessionId'])
-    const text = extractTextFromResult(result)
 
     return (
         <div className="flex flex-col gap-2">
@@ -539,9 +554,7 @@ const CodexWriteStdinResultView: ToolViewComponent = (props: ToolViewProps) => {
                     ? `Sent: ${chars.replace(/\r?\n/g, ' ↩ ')}`
                     : target ? `Poll target: ${target}` : 'Poll output'
             ])}
-            {text
-                ? renderText(text, { mode: 'code', language: 'text' })
-                : <div className="text-sm text-[var(--app-hint)]">{placeholderForState(props.block.tool.state)}</div>}
+            {renderCodexStructuredResult(result, props.block.tool.state)}
             <RawJsonDevOnly value={result} />
         </div>
     )
@@ -550,7 +563,6 @@ const CodexWriteStdinResultView: ToolViewComponent = (props: ToolViewProps) => {
 const CodexSpawnAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
     const input = isObject(props.block.tool.input) ? props.block.tool.input : null
     const result = isObject(props.block.tool.result) ? props.block.tool.result : null
-    const text = extractTextFromResult(props.block.tool.result)
     const agentId = result && typeof result.agent_id === 'string' ? result.agent_id : null
     const nickname = result && typeof result.nickname === 'string' ? result.nickname : getInputString(input, ['nickname', 'name', 'agent_name'])
     const message = getInputString(input, ['message', 'messagePreview', 'prompt', 'description'])
@@ -564,9 +576,7 @@ const CodexSpawnAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
                 model ? `Model: ${model}` : '',
                 message ? `Prompt: ${message}` : ''
             ])}
-            {text
-                ? renderText(text, { mode: 'code', language: 'text' })
-                : <div className="text-sm text-[var(--app-hint)]">{placeholderForState(props.block.tool.state)}</div>}
+            {renderCodexStructuredResult(props.block.tool.result, props.block.tool.state)}
             <RawJsonDevOnly value={props.block.tool.result} />
         </div>
     )
@@ -575,7 +585,6 @@ const CodexSpawnAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
 const CodexWaitAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
     const input = isObject(props.block.tool.input) ? props.block.tool.input : null
     const result = props.block.tool.result
-    const text = extractTextFromResult(result)
     const targets = getStringList(input?.targets)
     const timeout = getInputString(input, ['timeout_ms', 'timeout'])
 
@@ -585,9 +594,7 @@ const CodexWaitAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
                 targets.length > 0 ? `Targets: ${targets.join(', ')}` : '',
                 timeout ? `Timeout: ${timeout}` : ''
             ])}
-            {text
-                ? renderText(text, { mode: 'code', language: 'text' })
-                : <div className="text-sm text-[var(--app-hint)]">{placeholderForState(props.block.tool.state)}</div>}
+            {renderCodexStructuredResult(result, props.block.tool.state)}
             <RawJsonDevOnly value={result} />
         </div>
     )
@@ -596,7 +603,6 @@ const CodexWaitAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
 const CodexSendInputResultView: ToolViewComponent = (props: ToolViewProps) => {
     const input = isObject(props.block.tool.input) ? props.block.tool.input : null
     const result = props.block.tool.result
-    const text = extractTextFromResult(result)
     const target = getInputString(input, ['target'])
     const message = getInputString(input, ['message', 'messagePreview'])
     const interrupt = input?.interrupt === true
@@ -608,9 +614,7 @@ const CodexSendInputResultView: ToolViewComponent = (props: ToolViewProps) => {
                 interrupt ? 'Interrupt' : '',
                 message ? `Message: ${message}` : ''
             ])}
-            {text
-                ? renderText(text, { mode: 'code', language: 'text' })
-                : <div className="text-sm text-[var(--app-hint)]">{placeholderForState(props.block.tool.state)}</div>}
+            {renderCodexStructuredResult(result, props.block.tool.state)}
             <RawJsonDevOnly value={result} />
         </div>
     )
@@ -619,7 +623,6 @@ const CodexSendInputResultView: ToolViewComponent = (props: ToolViewProps) => {
 const CodexCloseAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
     const input = isObject(props.block.tool.input) ? props.block.tool.input : null
     const result = props.block.tool.result
-    const text = extractTextFromResult(result)
     const target = getInputString(input, ['target', 'agent_id', 'agentId'])
 
     return (
@@ -627,9 +630,7 @@ const CodexCloseAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
             {renderToolMetaLines([
                 target ? `Target: ${target}` : ''
             ])}
-            {text
-                ? renderText(text, { mode: 'code', language: 'text' })
-                : <div className="text-sm text-[var(--app-hint)]">{placeholderForState(props.block.tool.state)}</div>}
+            {renderCodexStructuredResult(result, props.block.tool.state)}
             <RawJsonDevOnly value={result} />
         </div>
     )
