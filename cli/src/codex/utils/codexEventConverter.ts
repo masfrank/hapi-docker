@@ -72,6 +72,25 @@ function parseArguments(value: unknown): unknown {
     return value;
 }
 
+function normalizeCodexToolName(name: string): string {
+    switch (name) {
+        case 'exec_command':
+            return 'CodexBash';
+        case 'write_stdin':
+            return 'CodexWriteStdin';
+        case 'spawn_agent':
+            return 'CodexSpawnAgent';
+        case 'wait_agent':
+            return 'CodexWaitAgent';
+        case 'send_input':
+            return 'CodexSendInput';
+        case 'close_agent':
+            return 'CodexCloseAgent';
+        default:
+            return name;
+    }
+}
+
 function extractCallId(payload: Record<string, unknown>): string | null {
     const candidates = [
         'call_id',
@@ -203,7 +222,7 @@ export function convertCodexEvent(rawEvent: unknown): CodexConversionResult | nu
             return {
                 message: {
                     type: 'tool-call',
-                    name,
+                    name: normalizeCodexToolName(name),
                     callId,
                     input: parseArguments(payloadRecord.arguments),
                     id: randomUUID()

@@ -75,6 +75,35 @@ describe('convertCodexEvent', () => {
         });
     });
 
+    it.each([
+        ['exec_command', 'CodexBash'],
+        ['write_stdin', 'CodexWriteStdin'],
+        ['spawn_agent', 'CodexSpawnAgent'],
+        ['wait_agent', 'CodexWaitAgent'],
+        ['send_input', 'CodexSendInput'],
+        ['close_agent', 'CodexCloseAgent'],
+        ['update_plan', 'update_plan'],
+        ['mcp__hapi__change_title', 'mcp__hapi__change_title'],
+        ['unknown_tool', 'unknown_tool']
+    ])('normalizes function_call tool name %s -> %s', (inputName, expectedName) => {
+        const result = convertCodexEvent({
+            type: 'response_item',
+            payload: {
+                type: 'function_call',
+                name: inputName,
+                call_id: 'call-1',
+                arguments: '{"foo":"bar"}'
+            }
+        });
+
+        expect(result?.message).toMatchObject({
+            type: 'tool-call',
+            name: expectedName,
+            callId: 'call-1',
+            input: { foo: 'bar' }
+        });
+    });
+
     it('converts function_call_output items', () => {
         const result = convertCodexEvent({
             type: 'response_item',
