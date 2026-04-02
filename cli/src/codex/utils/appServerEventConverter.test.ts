@@ -220,6 +220,35 @@ describe('AppServerEventConverter', () => {
         ]);
     });
 
+    it('reads child thread id from the item payload when top-level threadId is missing', () => {
+        const converter = new AppServerEventConverter();
+
+        converter.handleNotification('item/completed', {
+            threadId: 'parent-thread',
+            item: {
+                id: 'spawn-1',
+                type: 'collabAgentToolCall',
+                tool: 'spawnAgent',
+                receiverThreadIds: ['child-thread-1']
+            }
+        });
+
+        const childAgent = converter.handleNotification('item/completed', {
+            item: {
+                id: 'child-agent-1',
+                type: 'agentMessage',
+                threadId: 'child-thread-1',
+                content: [{ type: 'text', text: 'hello from child' }]
+            }
+        });
+
+        expect(childAgent).toEqual([{
+            type: 'agent_message',
+            message: 'hello from child',
+            parent_tool_call_id: 'spawn-1'
+        }]);
+    });
+
     it('backfills missing child agent messages from wait results without duplicating later completions', () => {
         const converter = new AppServerEventConverter();
 

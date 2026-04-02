@@ -405,7 +405,15 @@ export class AppServerEventConverter {
 
             const itemType = normalizeItemType(item.type ?? item.itemType ?? item.kind);
             const itemId = extractItemId(paramsRecord) ?? asString(item.id ?? item.itemId ?? item.item_id);
-            const threadId = asString(paramsRecord.threadId ?? paramsRecord.thread_id);
+            const threadId = asString(
+                paramsRecord.threadId
+                ?? paramsRecord.thread_id
+                ?? item.threadId
+                ?? item.thread_id
+                ?? asRecord(item.thread)?.id
+                ?? asRecord(item.thread)?.threadId
+                ?? asRecord(item.thread)?.thread_id
+            );
 
             if (!itemType || !itemId) {
                 return events;

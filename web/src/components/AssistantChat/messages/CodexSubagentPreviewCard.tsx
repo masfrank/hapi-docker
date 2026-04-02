@@ -23,13 +23,9 @@ function getSpawnSummary(block: ToolCallBlock): {
     const nickname = result && typeof result.nickname === 'string' && result.nickname.length > 0
         ? result.nickname
         : getInputStringAny(input, ['nickname', 'name', 'agent_name'])
-    const agentId = result && typeof result.agent_id === 'string' && result.agent_id.length > 0
-        ? result.agent_id
-        : null
     const prompt = getInputStringAny(input, ['message', 'messagePreview', 'prompt', 'description'])
 
-    const subtitleParts = [nickname, agentId].filter((part): part is string => Boolean(part && part.length > 0))
-    const subtitle = subtitleParts.length > 0 ? subtitleParts.join(' · ') : null
+    const subtitle = nickname && nickname.length > 0 ? nickname : null
     const countLabel = `${block.children.length} nested block${block.children.length === 1 ? '' : 's'}`
 
     return {
@@ -276,7 +272,7 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                                         </span>
                                     </div>
                                     {summary.subtitle ? (
-                                        <CardDescription className="mt-1 font-mono text-xs text-[var(--app-hint)] break-all">
+                                        <CardDescription className="mt-1 text-xs text-[var(--app-hint)] break-words">
                                             {summary.subtitle}
                                         </CardDescription>
                                     ) : null}
@@ -333,7 +329,6 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                                 <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getLifecycleStatusClass(lifecycle.status)}`}>
                                     {getLifecycleStatusLabel(lifecycle.status)}
                                 </span>
-                                {lifecycle.agentId ? <span className="font-mono text-xs text-[var(--app-hint)]">Agent ID: {lifecycle.agentId}</span> : null}
                                 {actionCount > 0 ? <span className="font-mono text-xs text-[var(--app-hint)]">{actionCount} actions</span> : null}
                             </div>
                             {lifecycle.latestText ? (
