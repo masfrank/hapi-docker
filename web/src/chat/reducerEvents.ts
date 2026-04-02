@@ -1,11 +1,11 @@
 import type { AgentEvent, AgentEventBlock, ChatBlock, NormalizedMessage } from '@/chat/types'
 
-function parseClaudeUsageLimit(text: string): number | null {
+function parseClaudeUsageLimit(text: string): AgentEvent | null {
     const match = text.match(/^Claude AI usage limit reached\|(\d+)$/)
     if (!match) return null
     const timestamp = Number.parseInt(match[1], 10)
     if (!Number.isFinite(timestamp)) return null
-    return timestamp
+    return { type: 'limit-reached', endsAt: timestamp }
 }
 
 export function parseMessageAsEvent(msg: NormalizedMessage): AgentEvent | null {
@@ -14,9 +14,9 @@ export function parseMessageAsEvent(msg: NormalizedMessage): AgentEvent | null {
 
     for (const content of msg.content) {
         if (content.type === 'text') {
-            const limitReached = parseClaudeUsageLimit(content.text)
-            if (limitReached !== null) {
-                return { type: 'limit-reached', endsAt: limitReached }
+            const limitEvent = parseClaudeUsageLimit(content.text)
+            if (limitEvent !== null) {
+                return limitEvent
             }
         }
     }
