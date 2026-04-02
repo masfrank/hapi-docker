@@ -158,6 +158,14 @@ export class AcpMessageHandler {
             const content = update.content;
             const text = extractTextContent(content);
             if (text) {
+                const rateLimit = parseRateLimitText(text);
+                if (rateLimit) {
+                    this.flushText();
+                    if (!rateLimit.suppress) {
+                        this.onMessage(rateLimit.message);
+                    }
+                    return;
+                }
                 this.appendTextChunk(text);
             }
             return;
