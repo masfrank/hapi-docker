@@ -601,11 +601,11 @@ export class AppServerEventConverter {
                     if (autoApproved !== null) meta.auto_approved = autoApproved;
                     this.commandMeta.set(itemId, meta);
 
-                    events.push({
+                    events.push(this.addSidechainMeta({
                         type: 'exec_command_begin',
                         call_id: itemId,
                         ...meta
-                    });
+                    }, threadId));
                 }
 
                 if (method === 'item/completed') {
@@ -616,7 +616,7 @@ export class AppServerEventConverter {
                     const exitCode = asNumber(item.exitCode ?? item.exit_code ?? item.exitcode);
                     const status = asString(item.status);
 
-                    events.push({
+                    events.push(this.addSidechainMeta({
                         type: 'exec_command_end',
                         call_id: itemId,
                         ...meta,
@@ -625,7 +625,7 @@ export class AppServerEventConverter {
                         ...(error ? { error } : {}),
                         ...(exitCode !== null ? { exit_code: exitCode } : {}),
                         ...(status ? { status } : {})
-                    });
+                    }, threadId));
 
                     this.commandMeta.delete(itemId);
                     this.commandOutputBuffers.delete(itemId);
@@ -644,11 +644,11 @@ export class AppServerEventConverter {
                     if (autoApproved !== null) meta.auto_approved = autoApproved;
                     this.fileChangeMeta.set(itemId, meta);
 
-                    events.push({
+                    events.push(this.addSidechainMeta({
                         type: 'patch_apply_begin',
                         call_id: itemId,
                         ...meta
-                    });
+                    }, threadId));
                 }
 
                 if (method === 'item/completed') {
@@ -657,14 +657,14 @@ export class AppServerEventConverter {
                     const stderr = asString(item.stderr);
                     const success = asBoolean(item.success ?? item.ok ?? item.applied ?? item.status === 'completed');
 
-                    events.push({
+                    events.push(this.addSidechainMeta({
                         type: 'patch_apply_end',
                         call_id: itemId,
                         ...meta,
                         ...(stdout ? { stdout } : {}),
                         ...(stderr ? { stderr } : {}),
                         success: success ?? false
-                    });
+                    }, threadId));
 
                     this.fileChangeMeta.delete(itemId);
                 }

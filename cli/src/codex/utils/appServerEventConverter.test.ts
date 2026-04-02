@@ -296,6 +296,58 @@ describe('AppServerEventConverter', () => {
         expect(childCompleted).toEqual([]);
     });
 
+    it('annotates child command execution events with the parent spawn id', () => {
+        const converter = new AppServerEventConverter();
+
+        converter.handleNotification('item/completed', {
+            threadId: 'parent-thread',
+            item: {
+                id: 'spawn-1',
+                type: 'collabAgentToolCall',
+                tool: 'spawnAgent',
+                receiverThreadIds: ['child-thread-1']
+            }
+        });
+
+        const started = converter.handleNotification('item/started', {
+            threadId: 'child-thread-1',
+            item: {
+                id: 'cmd-1',
+                type: 'commandExecution',
+                command: 'ls'
+            }
+        });
+        expect(started).toEqual([{
+            type: 'exec_command_begin',
+            call_id: 'cmd-1',
+            command: 'ls',
+            parent_tool_call_id: 'spawn-1'
+        }]);
+
+        converter.handleNotification('item/commandExecution/outputDelta', {
+            threadId: 'child-thread-1',
+            itemId: 'cmd-1',
+            delta: 'child output'
+        });
+
+        const completed = converter.handleNotification('item/completed', {
+            threadId: 'child-thread-1',
+            item: {
+                id: 'cmd-1',
+                type: 'commandExecution',
+                exitCode: 0
+            }
+        });
+        expect(completed).toEqual([{
+            type: 'exec_command_end',
+            call_id: 'cmd-1',
+            command: 'ls',
+            output: 'child output',
+            exit_code: 0,
+            parent_tool_call_id: 'spawn-1'
+        }]);
+    });
+
     it('ignores child-thread hapi change_title tool calls in live mode', () => {
         const converter = new AppServerEventConverter();
 
