@@ -242,4 +242,20 @@ describe('annotateCodexSidechains', () => {
         expect(result[6]).toMatchObject({ isSidechain: true, sidechainKey: 'spawn-1' })
         expect(result[7]).toMatchObject({ isSidechain: true, sidechainKey: 'spawn-2' })
     })
+
+    it('does not heuristically assign untagged messages when multiple child agents are active', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('spawn-1', 'CodexSpawnAgent', { message: 'First child' }, 1),
+            agentToolResult('spawn-1', { agent_id: 'agent-1' }, 2),
+            agentToolCall('spawn-2', 'CodexSpawnAgent', { message: 'Second child' }, 3),
+            agentToolResult('spawn-2', { agent_id: 'agent-2' }, 4),
+            agentText('root-parent-progress', 'Parent progress update', 5),
+            agentText('stray-child-reply', 'First child answer', 6)
+        ]
+
+        const result = annotateCodexSidechains(messages)
+
+        expect(result[4]).toMatchObject({ isSidechain: false })
+        expect(result[5]).toMatchObject({ isSidechain: false })
+    })
 })

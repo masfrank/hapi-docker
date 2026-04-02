@@ -137,7 +137,7 @@ export function annotateCodexSidechains(messages: NormalizedMessage[]): Normaliz
             continue
         }
 
-        const activeAgentId = activeAgentIds.at(-1) ?? null
+        const activeAgentId = activeAgentIds.length === 1 ? activeAgentIds[0] : null
         let activeSpawnToolUseId = activeAgentId ? agentIdToSpawnToolUseId.get(activeAgentId) ?? null : null
         if (!activeSpawnToolUseId && pendingSpawnToolUseId && !hasCodexSpawnToolCall) {
             activeSpawnToolUseId = pendingSpawnToolUseId

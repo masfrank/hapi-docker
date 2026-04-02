@@ -167,4 +167,64 @@ describe('reduceChatBlocks', () => {
         expect(spawnBlocks.find((block) => block.tool.id === 'spawn-1')?.lifecycle?.status).toBe('completed')
         expect(spawnBlocks.find((block) => block.tool.id === 'spawn-2')?.lifecycle?.status).toBe('running')
     })
+
+    it('reassigns a stray root child reply to the matching spawn card using wait status messages', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('msg-spawn-1-call', 'spawn-1', 'CodexSpawnAgent', { message: 'First child prompt' }, 1),
+            agentToolResult('msg-spawn-1-result', 'spawn-1', { agent_id: 'agent-1', nickname: 'First' }, 2),
+            agentToolCall('msg-spawn-2-call', 'spawn-2', 'CodexSpawnAgent', { message: 'Second child prompt' }, 3),
+            agentToolResult('msg-spawn-2-result', 'spawn-2', { agent_id: 'agent-2', nickname: 'Second' }, 4),
+            {
+                ...userText('child-2-user', 'Second child prompt', 5),
+                isSidechain: true,
+                sidechainKey: 'spawn-2'
+            },
+            {
+                ...agentText('child-2-agent', 'Second child answer', 6),
+                isSidechain: true,
+                sidechainKey: 'spawn-2'
+            },
+            agentText('child-1-root-agent', 'First child answer', 7),
+            agentText('parent-agent', 'Parent progress update', 8),
+            agentToolCall('msg-wait-call', 'wait-1', 'CodexWaitAgent', { targets: ['agent-1', 'agent-2'] }, 9),
+            agentToolResult('msg-wait-result', 'wait-1', {
+                statuses: {
+                    'agent-1': {
+                        status: 'completed',
+                        message: 'First child answer'
+                    },
+                    'agent-2': {
+                        status: 'completed',
+                        message: 'Second child answer'
+                    }
+                }
+            }, 10)
+        ]
+
+        const reduced = reduceChatBlocks(messages, null)
+        const spawnBlocks = reduced.blocks.filter(
+            (block): block is ToolCallBlock => block.kind === 'tool-call' && block.tool.name === 'CodexSpawnAgent'
+        )
+
+        const firstSpawn = spawnBlocks.find((block) => block.tool.id === 'spawn-1')
+        const secondSpawn = spawnBlocks.find((block) => block.tool.id === 'spawn-2')
+
+        expect(firstSpawn?.children).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ kind: 'agent-text', text: 'First child answer' })
+            ])
+        )
+        expect(secondSpawn?.children).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ kind: 'user-text', text: 'Second child prompt' }),
+                expect.objectContaining({ kind: 'agent-text', text: 'Second child answer' })
+            ])
+        )
+        expect(
+            reduced.blocks.some((block) => block.kind === 'agent-text' && block.text === 'First child answer')
+        ).toBe(false)
+        expect(
+            reduced.blocks.some((block) => block.kind === 'agent-text' && block.text === 'Parent progress update')
+        ).toBe(true)
+    })
 })
