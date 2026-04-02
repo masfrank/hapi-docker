@@ -331,11 +331,16 @@ export function CodexSubagentPreviewCard(props: { block: ToolCallBlock }) {
                                 </span>
                                 {actionCount > 0 ? <span className="font-mono text-xs text-[var(--app-hint)]">{actionCount} actions</span> : null}
                             </div>
-                            {lifecycle.latestText ? (
+                            {summary.prompt ? (
                                 <div className="mt-2 whitespace-pre-wrap break-words text-sm">
+                                    {summary.prompt}
+                                </div>
+                            ) : null}
+                            {lifecycle.latestText ? (
+                                <div className="mt-2 whitespace-pre-wrap break-words text-sm text-[var(--app-hint)]">
                                     {lifecycle.latestText}
                                 </div>
-                            ) : summary.promptPreview ? (
+                            ) : !summary.prompt && summary.promptPreview ? (
                                 <div className="mt-2 whitespace-pre-wrap break-words text-sm text-[var(--app-hint)]">
                                     {summary.promptPreview}
                                 </div>

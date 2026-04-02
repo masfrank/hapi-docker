@@ -227,4 +227,27 @@ describe('reduceChatBlocks', () => {
             reduced.blocks.some((block) => block.kind === 'agent-text' && block.text === 'Parent progress update')
         ).toBe(true)
     })
+
+    it('uses the completed child message as lifecycle latest text for single-target waits', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('msg-spawn-call', 'spawn-1', 'CodexSpawnAgent', { message: 'Delegate task' }, 1),
+            agentToolResult('msg-spawn-result', 'spawn-1', { agent_id: 'agent-1', nickname: 'Solo' }, 2),
+            agentToolCall('msg-wait-call', 'wait-1', 'CodexWaitAgent', { targets: ['agent-1'] }, 3),
+            agentToolResult('msg-wait-result', 'wait-1', {
+                statuses: {
+                    'agent-1': {
+                        status: 'completed',
+                        message: 'Final child answer'
+                    }
+                }
+            }, 4)
+        ]
+
+        const reduced = reduceChatBlocks(messages, null)
+        const spawnBlock = reduced.blocks.find(
+            (block): block is ToolCallBlock => block.kind === 'tool-call' && block.tool.name === 'CodexSpawnAgent'
+        )
+
+        expect(spawnBlock?.lifecycle?.latestText).toBe('Final child answer')
+    })
 })

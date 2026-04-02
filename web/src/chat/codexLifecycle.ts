@@ -127,6 +127,7 @@ function summarizeWaitResult(block: ToolCallBlock, targets: string[]): { status:
     if (isObject(resultObject.statuses)) {
         const parts: string[] = []
         let status: CodexAgentLifecycleStatus | null = null
+        let singleTargetMessage: string | null = null
         for (const target of targets) {
             const raw = resultObject.statuses[target]
             const rawStatus = typeof raw === 'string'
@@ -136,12 +137,24 @@ function summarizeWaitResult(block: ToolCallBlock, targets: string[]): { status:
                     : isObject(raw) && typeof raw.completed === 'string'
                         ? raw.completed
                         : null
+            const rawMessage = isObject(raw) && typeof raw.message === 'string' && raw.message.trim().length > 0
+                ? raw.message.trim()
+                : null
             if (rawStatus) {
                 const normalized = normalizeLifecycleStatus(rawStatus)
                 if (normalized) {
                     status = status ? pickHigherStatus(status, normalized) : normalized
                 }
                 parts.push(`${target}: ${rawStatus}`)
+            }
+            if (targets.length === 1 && rawMessage) {
+                singleTargetMessage = rawMessage
+            }
+        }
+        if (singleTargetMessage) {
+            return {
+                status,
+                summary: singleTargetMessage
             }
         }
         if (parts.length > 0) {

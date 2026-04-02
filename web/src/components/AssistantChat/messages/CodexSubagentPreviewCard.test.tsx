@@ -131,6 +131,7 @@ describe('CodexSubagentPreviewCard', () => {
 
         expect(screen.getByRole('link', { name: 'repo' })).toHaveAttribute('href', 'https://github.com/example/repo')
         expect(screen.getByRole('button', { name: 'Close dialog' })).toBeInTheDocument()
+        expect(screen.getAllByText('Search GitHub trending repositories for React state tooling').length).toBeGreaterThan(0)
     })
 
     it('renders HappyToolMessage as the lifecycle card for CodexSpawnAgent', () => {
@@ -155,7 +156,7 @@ describe('CodexSubagentPreviewCard', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Subagent conversation — Pauli/i }))
 
-        expect(screen.queryByText('Search GitHub trending repositories for React state tooling')).not.toBeInTheDocument()
+        expect(screen.getAllByText('Search GitHub trending repositories for React state tooling').length).toBeGreaterThan(0)
         expect(screen.getByRole('link', { name: 'repo' })).toBeInTheDocument()
     })
 
