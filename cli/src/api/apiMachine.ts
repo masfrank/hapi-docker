@@ -19,6 +19,7 @@ import type {
     SpawnSessionOptions,
     SpawnSessionResult
 } from '../modules/common/rpcTypes'
+import { listImportableClaudeSessions } from '@/claude/utils/listImportableClaudeSessions'
 import { listImportableCodexSessions } from '@/codex/utils/listImportableCodexSessions'
 import { applyVersionedAck } from './versionedUpdate'
 
@@ -165,11 +166,15 @@ export class ApiMachineClient {
         this.rpcHandlerManager.registerHandler<RpcListImportableSessionsRequest, RpcListImportableSessionsResponse>(
             'list-importable-sessions',
             async (params) => {
-                if (params?.agent !== 'codex') {
-                    return { sessions: [] }
+                if (params?.agent === 'codex') {
+                    return await listImportableCodexSessions()
                 }
 
-                return await listImportableCodexSessions()
+                if (params?.agent === 'claude') {
+                    return await listImportableClaudeSessions()
+                }
+
+                return { sessions: [] }
             }
         )
     }

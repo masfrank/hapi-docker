@@ -10,6 +10,7 @@ type FakeSocket = {
 }
 
 const listImportableCodexSessionsMock = vi.hoisted(() => vi.fn())
+const listImportableClaudeSessionsMock = vi.hoisted(() => vi.fn())
 const fakeSocket = vi.hoisted<FakeSocket>(() => ({
     handlers: new Map(),
     emitted: [],
@@ -48,12 +49,30 @@ const importableSessionsResponse = {
     ]
 }
 
+const importableClaudeSessionsResponse = {
+    sessions: [
+        {
+            agent: 'claude',
+            externalSessionId: 'claude-session-1',
+            cwd: '/work/project',
+            timestamp: 1712131200000,
+            transcriptPath: '/sessions/claude-session-1.jsonl',
+            previewTitle: 'Continue the refactor',
+            previewPrompt: 'Continue the refactor'
+        }
+    ]
+}
+
 vi.mock('socket.io-client', () => ({
     io: vi.fn(() => fakeSocket)
 }))
 
 vi.mock('@/codex/utils/listImportableCodexSessions', () => ({
     listImportableCodexSessions: listImportableCodexSessionsMock
+}))
+
+vi.mock('@/claude/utils/listImportableClaudeSessions', () => ({
+    listImportableClaudeSessions: listImportableClaudeSessionsMock
 }))
 
 vi.mock('@/modules/common/registerCommonHandlers', () => ({
@@ -78,10 +97,12 @@ describe('ApiMachineClient list-importable-sessions RPC', () => {
         fakeSocket.emitted.length = 0
         vi.mocked(fakeSocket.emitWithAck).mockClear()
         listImportableCodexSessionsMock.mockReset()
+        listImportableClaudeSessionsMock.mockReset()
         listImportableCodexSessionsMock.mockResolvedValue(importableSessionsResponse)
+        listImportableClaudeSessionsMock.mockResolvedValue(importableClaudeSessionsResponse)
     })
 
-    it('registers the RPC during connect and returns codex scanner results only for codex', async () => {
+    it('registers the RPC during connect and returns scanner results by agent', async () => {
         const machine = {
             id: 'machine-1',
             metadata: null,
@@ -137,6 +158,21 @@ describe('ApiMachineClient list-importable-sessions RPC', () => {
 
         expect(missingAgentResponse).toBe(JSON.stringify({ sessions: [] }))
         expect(listImportableCodexSessionsMock).toHaveBeenCalledTimes(1)
+
+        const claudeResponse = await new Promise<string>((resolve) => {
+            rpcRequestHandler?.(
+                {
+                    method: 'machine-1:list-importable-sessions',
+                    params: JSON.stringify({ agent: 'claude' })
+                },
+                resolve
+            )
+        })
+
+        expect(JSON.parse(claudeResponse)).toEqual({
+            sessions: [expect.objectContaining({ agent: 'claude' })]
+        })
+        expect(listImportableClaudeSessionsMock).toHaveBeenCalledTimes(1)
 
         client.shutdown()
     })
