@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const harness = vi.hoisted(() => ({
     replayMessages: [] as Array<Record<string, unknown>>,
+    remoteMessages: [] as Array<Record<string, unknown>>,
     scannerCalls: [] as Array<Record<string, unknown>>,
     remoteCalls: [] as Array<Record<string, unknown>>,
+    metadataUpdates: [] as Array<Record<string, unknown>>,
+    sessionEvents: [] as Array<Record<string, unknown>>,
     rpcHandlers: new Map<string, (params?: unknown) => Promise<unknown> | unknown>(),
     expectedReplaySessionId: 'resume-session-123',
 }))
@@ -13,13 +16,18 @@ vi.mock('./claudeRemote', () => ({
         onMessage: (message: Record<string, unknown>) => void
     }) => {
         harness.remoteCalls.push(opts as Record<string, unknown>)
-        opts.onMessage({
-            type: 'assistant',
-            message: {
-                role: 'assistant',
-                content: [{ type: 'text', text: 'live assistant reply' }]
-            }
-        })
+        const messages = harness.remoteMessages.length > 0
+            ? harness.remoteMessages
+            : [{
+                type: 'assistant',
+                message: {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'live assistant reply' }]
+                }
+            }]
+        for (const message of messages) {
+            opts.onMessage(message)
+        }
         void harness.rpcHandlers.get('switch')?.({})
     }
 }))
@@ -111,6 +119,7 @@ function createSessionStub() {
         client: {
             sendClaudeSessionMessage: (message: Record<string, unknown>) => void;
             sendSessionEvent: (event: Record<string, unknown>) => void;
+            updateMetadata: (handler: (metadata: Record<string, unknown>) => Record<string, unknown>) => void;
             rpcHandlerManager: {
                 registerHandler: (method: string, handler: (params?: unknown) => Promise<unknown> | unknown) => void;
             };
@@ -143,6 +152,13 @@ function createSessionStub() {
             },
             sendSessionEvent: (event: Record<string, unknown>) => {
                 sessionEvents.push(event)
+                harness.sessionEvents.push(event)
+            },
+            updateMetadata: (handler: (metadata: Record<string, unknown>) => Record<string, unknown>) => {
+                const next = handler({
+                    summary: null
+                })
+                harness.metadataUpdates.push(next)
             },
             rpcHandlerManager: {
                 registerHandler(method: string, handler: (params?: unknown) => Promise<unknown> | unknown) {
@@ -186,8 +202,11 @@ function createSessionStub() {
 describe('claudeRemoteLauncher', () => {
     afterEach(() => {
         harness.replayMessages = []
+        harness.remoteMessages = []
         harness.scannerCalls = []
         harness.remoteCalls = []
+        harness.metadataUpdates = []
+        harness.sessionEvents = []
         harness.rpcHandlers = new Map()
         harness.expectedReplaySessionId = 'resume-session-123'
     })
@@ -250,5 +269,92 @@ describe('claudeRemoteLauncher', () => {
                 })
             })
         ])
+    })
+
+    it('forwards Claude subagent metadata from live messages and replayed transcript entries', async () => {
+        harness.remoteMessages = [
+            {
+                type: 'assistant',
+                parent_tool_use_id: 'task-1',
+                message: {
+                    role: 'assistant',
+                    content: [{
+                        type: 'tool_use',
+                        id: 'task-1',
+                        name: 'Task',
+                        input: { prompt: 'Investigate test failure' }
+                    }]
+                }
+            },
+            {
+                type: 'result',
+                subtype: 'success',
+                result: 'done',
+                num_turns: 1,
+                total_cost_usd: 0,
+                duration_ms: 1,
+                duration_api_ms: 1,
+                is_error: false,
+                session_id: 'task-1'
+            }
+        ]
+
+        harness.replayMessages = [
+            {
+                type: 'assistant',
+                uuid: 'a1',
+                meta: {
+                    subagent: {
+                        kind: 'title',
+                        sidechainKey: 'task-1',
+                        title: 'Replay title'
+                    }
+                },
+                message: {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'replayed assistant reply' }]
+                }
+            }
+        ]
+
+        const { session, sentClaudeMessages } = createSessionStub()
+
+        await claudeRemoteLauncher(session as never)
+
+        expect(harness.metadataUpdates).toEqual([
+            expect.objectContaining({
+                summary: expect.objectContaining({
+                    text: 'Replay title'
+                })
+            }),
+            expect.objectContaining({
+                summary: expect.objectContaining({
+                    text: 'Investigate test failure'
+                })
+            }),
+            expect.objectContaining({
+                summary: expect.objectContaining({
+                    text: 'done'
+                })
+            })
+        ])
+
+        expect(harness.sessionEvents).toContainEqual({
+            type: 'subagent_status_change',
+            sidechainKey: 'task-1',
+            status: 'completed'
+        })
+
+        expect(sentClaudeMessages).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                type: 'assistant',
+                meta: expect.objectContaining({
+                    subagent: expect.objectContaining({
+                        kind: 'message',
+                        sidechainKey: 'task-1'
+                    })
+                })
+            })
+        ]))
     })
 })

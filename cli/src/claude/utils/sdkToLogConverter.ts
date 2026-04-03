@@ -13,6 +13,7 @@ import type {
     SDKResultMessage
 } from '@/claude/sdk'
 import type { RawJSONLines } from '@/claude/types'
+import type { NormalizedSubagentMeta } from '@/subagents/types'
 import type { ClaudePermissionMode } from '@hapi/protocol/types'
 
 /**
@@ -30,6 +31,12 @@ type PermissionResponse = {
     approved: boolean
     mode?: ClaudePermissionMode
     reason?: string
+}
+
+type LogMessageWithSubagentMeta = RawJSONLines & {
+    meta?: {
+        subagent?: NormalizedSubagentMeta
+    }
 }
 
 /**
@@ -94,12 +101,13 @@ export class SDKToLogConverter {
         const timestamp = new Date().toISOString()
         let parentUuid = this.lastUuid;
         let isSidechain = false;
+        const subagentKey = (sdkMessage as SDKAssistantMessage).parent_tool_use_id ?? (sdkMessage as any).parentToolUseId;
         if (sdkMessage.parent_tool_use_id) {
             isSidechain = true;
             parentUuid = this.sidechainLastUUID.get((sdkMessage as any).parent_tool_use_id) ?? null;
             this.sidechainLastUUID.set((sdkMessage as any).parent_tool_use_id!, uuid);
         }
-        const baseFields = {
+        const baseFields: Record<string, unknown> = {
             parentUuid: parentUuid,
             isSidechain: isSidechain,
             userType: 'external' as const,
@@ -109,6 +117,14 @@ export class SDKToLogConverter {
             gitBranch: this.context.gitBranch,
             uuid,
             timestamp
+        }
+        if (subagentKey) {
+            baseFields.meta = {
+                subagent: {
+                    kind: 'message',
+                    sidechainKey: subagentKey
+                }
+            }
         }
 
         let logMessage: RawJSONLines | null = null
@@ -120,7 +136,7 @@ export class SDKToLogConverter {
                     ...baseFields,
                     type: 'user',
                     message: userMsg.message
-                }
+                } as any
 
                 // Check if this is a tool result and add mode if available
                 if (Array.isArray(userMsg.message.content)) {
@@ -146,7 +162,7 @@ export class SDKToLogConverter {
                     message: assistantMsg.message,
                     // Assistant messages often have additional fields
                     requestId: (assistantMsg as any).requestId
-                }
+                } as any
                 // if (assistantMsg.message.content && Array.isArray(assistantMsg.message.content)) {
                 //     for (const content of assistantMsg.message.content) {
                 //         if (content.type === 'tool_use' && content.id) {
@@ -175,7 +191,7 @@ export class SDKToLogConverter {
                     tools: systemMsg.tools,
                     // Include all other fields
                     ...(systemMsg as any)
-                }
+                } as any
                 break
             }
 
@@ -211,7 +227,7 @@ export class SDKToLogConverter {
                     }
                 }
 
-                logMessage = baseLogMessage
+                logMessage = baseLogMessage as any
                 break
             }
 
@@ -263,8 +279,14 @@ export class SDKToLogConverter {
                 content: content
             },
             uuid,
-            timestamp
-        }
+            timestamp,
+            meta: {
+                subagent: {
+                    kind: 'message',
+                    sidechainKey: toolUseId
+                }
+            }
+        } as LogMessageWithSubagentMeta
     }
 
     /**

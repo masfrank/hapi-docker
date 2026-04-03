@@ -13,12 +13,14 @@ import { EnhancedMode } from "./loop";
 import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
 import { createSessionScanner } from "./utils/sessionScanner";
 import { isClaudeChatVisibleMessage } from "./utils/chatVisibility";
+import { extractClaudeSubagentMeta } from "./utils/claudeSubagentAdapter";
 import type { ClaudePermissionMode } from "@hapi/protocol/types";
 import {
     RemoteLauncherBase,
     type RemoteLauncherDisplayContext,
     type RemoteLauncherExitReason
 } from "@/modules/common/remote/RemoteLauncherBase";
+import type { NormalizedSubagentMeta } from "@/subagents/types";
 
 interface PermissionsField {
     date: number;
@@ -81,6 +83,40 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
         });
     }
 
+    private forwardSubagentMeta(meta: NormalizedSubagentMeta[]): void {
+        for (const item of meta) {
+            if (item.kind === 'spawn') {
+                this.session.client.updateMetadata((metadata) => ({
+                    ...metadata,
+                    summary: {
+                        text: item.prompt ?? item.sidechainKey,
+                        updatedAt: Date.now()
+                    }
+                }));
+                continue;
+            }
+
+            if (item.kind === 'title') {
+                this.session.client.updateMetadata((metadata) => ({
+                    ...metadata,
+                    summary: {
+                        text: item.title ?? item.sidechainKey,
+                        updatedAt: Date.now()
+                    }
+                }));
+                continue;
+            }
+
+            if (item.kind === 'status') {
+                this.session.client.sendSessionEvent({
+                    type: 'subagent_status_change',
+                    sidechainKey: item.sidechainKey,
+                    status: item.status
+                } as any);
+            }
+        }
+    }
+
     protected async runMainLoop(): Promise<void> {
         logger.debug('[claudeRemoteLauncher] Starting remote launcher');
         logger.debug(`[claudeRemoteLauncher] TTY available: ${this.hasTTY}`);
@@ -110,6 +146,10 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
             version: process.env.npm_package_version
         }, permissionHandler.getResponses());
 
+        const forwardSubagentMeta = (meta: NormalizedSubagentMeta[]): void => {
+            this.forwardSubagentMeta(meta);
+        };
+
         const replayExplicitResumeTranscript = async (): Promise<void> => {
             if (session.startingMode !== 'remote') {
                 return;
@@ -125,6 +165,16 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                 workingDirectory: session.path,
                 replayExistingMessages: true,
                 onMessage: (message) => {
+                    const subagentMeta = (message as Record<string, unknown>).meta as {
+                        subagent?: NormalizedSubagentMeta | NormalizedSubagentMeta[]
+                    } | undefined;
+
+                    if (subagentMeta?.subagent) {
+                        forwardSubagentMeta(Array.isArray(subagentMeta.subagent)
+                            ? subagentMeta.subagent
+                            : [subagentMeta.subagent]);
+                    }
+
                     if (message.type === 'summary' || message.isMeta || message.isCompactSummary) {
                         return;
                     }
@@ -150,6 +200,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
         function onMessage(message: SDKMessage) {
             formatClaudeMessageForInk(message, messageBuffer);
             permissionHandler.onMessage(message);
+            forwardSubagentMeta(extractClaudeSubagentMeta(message));
 
             if (message.type === 'assistant') {
                 let umessage = message as SDKAssistantMessage;
