@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { listImportableClaudeSessions } from './listImportableClaudeSessions'
@@ -17,6 +17,32 @@ describe('listImportableClaudeSessions', () => {
         if (existsSync(testDir)) {
             await rm(testDir, { recursive: true, force: true })
         }
+    })
+
+    it('uses the resumed root Claude session from the real fixture instead of carried-over history', async () => {
+        const fixtureContent = await readFile(join(__dirname, '__fixtures__', '1-continue-run-ls-tool.jsonl'), 'utf-8')
+        const sessionsRoot = join(testDir, 'sessions')
+        await mkdir(sessionsRoot, { recursive: true })
+
+        const fixturePath = join(sessionsRoot, '1-continue-run-ls-tool.jsonl')
+        await writeFile(fixturePath, fixtureContent)
+
+        const result = await listImportableClaudeSessions({ rootDir: sessionsRoot })
+
+        expect(result.sessions).toHaveLength(1)
+        expect(result.sessions[0]).toMatchObject({
+            agent: 'claude',
+            externalSessionId: '789e105f-ae33-486d-9271-0696266f072d',
+            cwd: '/Users/kirilldubovitskiy/projects/happy/handy-cli/notes/test-project',
+            timestamp: Date.parse('2025-07-19T22:32:32.898Z'),
+            transcriptPath: fixturePath,
+            previewPrompt: 'run ls tool',
+            previewTitle: 'run ls tool'
+        })
+
+        expect(result.sessions[0].externalSessionId).not.toBe('93a9705e-bc6a-406d-8dce-8acc014dedbd')
+        expect(result.sessions[0].previewPrompt).not.toBe('say lol')
+        expect(result.sessions[0].previewTitle).not.toBe('Casual Chat: Simple Greeting Exchange')
     })
 
     it('derives Claude importable session summaries from project jsonl files', async () => {

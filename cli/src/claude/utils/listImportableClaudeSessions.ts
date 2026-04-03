@@ -38,23 +38,32 @@ async function scanClaudeTranscript(transcriptPath: string): Promise<ImportableC
     }
 
     const lines = content.split(/\r?\n/)
-    let sessionId: string | null = null
+    const records = lines
+        .map((line, lineIndex) => ({
+            lineIndex,
+            record: parseJsonLine(line)
+        }))
+        .filter((entry): entry is { lineIndex: number; record: Record<string, unknown> } => entry.record !== null)
+
+    const rootSessionId = findRootSessionId(records)
+    if (!rootSessionId) {
+        return null
+    }
+
+    const rootStartIndex = findRootSessionStartIndex(records, rootSessionId)
+
     let cwd: string | null = null
     let timestamp: number | null = null
     let explicitTitle: string | null = null
     let previewPrompt: string | null = null
     let hasVisibleMessage = false
 
-    for (const line of lines) {
-        const parsedLine = parseJsonLine(line)
-        if (!parsedLine) {
+    for (const entry of records) {
+        if (entry.lineIndex < rootStartIndex) {
             continue
         }
 
-        const sessionMeta = extractSessionMeta(parsedLine)
-        if (sessionId === null && sessionMeta.sessionId !== null) {
-            sessionId = sessionMeta.sessionId
-        }
+        const sessionMeta = extractSessionMeta(entry.record)
         if (cwd === null && sessionMeta.cwd !== null) {
             cwd = sessionMeta.cwd
         }
@@ -65,7 +74,7 @@ async function scanClaudeTranscript(transcriptPath: string): Promise<ImportableC
             explicitTitle = sessionMeta.explicitTitle
         }
 
-        const rawMessage = parseRawClaudeMessage(parsedLine)
+        const rawMessage = parseRawClaudeMessage(entry.record)
         if (!rawMessage) {
             continue
         }
@@ -84,15 +93,14 @@ async function scanClaudeTranscript(transcriptPath: string): Promise<ImportableC
         return null
     }
 
-    const externalSessionId = sessionId ?? basename(transcriptPath, '.jsonl')
     const previewTitle = explicitTitle
         ?? previewPrompt
         ?? deriveCwdPreview(cwd)
-        ?? externalSessionId
+        ?? rootSessionId
 
     return {
         agent: 'claude',
-        externalSessionId,
+        externalSessionId: rootSessionId,
         cwd,
         timestamp,
         transcriptPath,
@@ -144,19 +152,28 @@ function parseRawClaudeMessage(record: Record<string, unknown>): RawJSONLines | 
     return parsed.success ? parsed.data : null
 }
 
+function findRootSessionId(records: Array<{ lineIndex: number; record: Record<string, unknown> }>): string | null {
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+        const sessionId = extractSessionIdCandidate(records[index].record)
+        if (sessionId) {
+            return sessionId
+        }
+    }
+
+    return null
+}
+
+function findRootSessionStartIndex(records: Array<{ lineIndex: number; record: Record<string, unknown> }>, rootSessionId: string): number {
+    const match = records.find((entry) => extractSessionIdCandidate(entry.record) === rootSessionId)
+    return match?.lineIndex ?? 0
+}
+
 function extractSessionMeta(record: Record<string, unknown>): {
-    sessionId: string | null
     cwd: string | null
     timestamp: number | null
     explicitTitle: string | null
 } {
     const payload = getRecord(record.payload)
-    const sessionId = getString(record.sessionId)
-        ?? getString(record.session_id)
-        ?? getString(payload?.sessionId)
-        ?? getString(payload?.session_id)
-        ?? getString(payload?.id)
-        ?? getString(record.id)
 
     const cwd = getString(record.cwd)
         ?? getString(payload?.cwd)
@@ -165,15 +182,10 @@ function extractSessionMeta(record: Record<string, unknown>): {
 
     const explicitTitle = extractExplicitTitleFromRecord(record) ?? extractExplicitTitleFromRecord(payload)
 
-    if (sessionId || cwd || timestamp !== null || explicitTitle) {
-        return { sessionId, cwd, timestamp, explicitTitle }
-    }
-
     return {
-        sessionId: null,
-        cwd: null,
-        timestamp: null,
-        explicitTitle: null
+        cwd,
+        timestamp,
+        explicitTitle
     }
 }
 
@@ -184,18 +196,28 @@ function extractExplicitTitleFromRecord(record: Record<string, unknown> | null):
 
     const type = getString(record.type)
     if (type === 'session_title_change') {
-        return extractTextValue(record.title ?? record.summary ?? record.text)
+        return extractTextValue(record.title ?? record.text)
     }
 
     const payload = getRecord(record.payload)
     if (payload) {
         const payloadType = getString(payload.type)
         if (payloadType === 'session_title_change') {
-            return extractTextValue(payload.title ?? payload.summary ?? payload.text)
+            return extractTextValue(payload.title ?? payload.text)
         }
     }
 
-    return extractTextValue(record.title ?? record.summary ?? record.name)
+    const topLevelTitle = getString(record.title)
+    if (topLevelTitle) {
+        return extractTextValue(topLevelTitle)
+    }
+
+    const payloadTitle = getString(getRecord(record.payload)?.title)
+    if (payloadTitle) {
+        return extractTextValue(payloadTitle)
+    }
+
+    return null
 }
 
 function extractUserPrompt(message: RawJSONLines): string | null {
@@ -215,7 +237,7 @@ function isRealClaudeUserMessage(message: RawJSONLines): message is Extract<RawJ
         return false
     }
 
-    const prompt = extractTextValue(message.message?.content)
+    const prompt = extractUserPrompt(message)
     if (!prompt) {
         return false
     }
@@ -271,6 +293,16 @@ function extractUserMessageText(value: unknown): string | null {
     }
 
     return normalizePreviewText(chunks.join(' '))
+}
+
+function extractSessionIdCandidate(record: Record<string, unknown>): string | null {
+    const payload = getRecord(record.payload)
+    return getString(record.sessionId)
+        ?? getString(record.session_id)
+        ?? getString(payload?.sessionId)
+        ?? getString(payload?.session_id)
+        ?? getString(payload?.id)
+        ?? getString(record.id)
 }
 
 function extractTextChunks(value: unknown): string[] {
