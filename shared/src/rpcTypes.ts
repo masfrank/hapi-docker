@@ -1,7 +1,7 @@
-export type ImportableSessionAgent = 'codex'
+export type ImportableSessionAgent = 'codex' | 'claude'
 
-export type ImportableCodexSessionSummary = {
-    agent: 'codex'
+export type ImportableSessionSummary = {
+    agent: ImportableSessionAgent
     externalSessionId: string
     cwd: string | null
     timestamp: number | null
@@ -10,10 +10,12 @@ export type ImportableCodexSessionSummary = {
     previewPrompt: string | null
 }
 
+export type ImportableCodexSessionSummary = ImportableSessionSummary
+
 export type RpcListImportableSessionsRequest = {
     agent: ImportableSessionAgent
 }
 
 export type RpcListImportableSessionsResponse = {
-    sessions: ImportableCodexSessionSummary[]
+    sessions: ImportableSessionSummary[]
 }

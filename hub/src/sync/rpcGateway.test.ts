@@ -65,6 +65,53 @@ describe('RpcGateway', () => {
         ])
     })
 
+    it('parses claude list-importable-sessions responses', async () => {
+        const registry = new RpcRegistry()
+
+        const socket = {
+            id: 'socket-1',
+            timeout: () => ({
+                emitWithAck: async () => ({
+                    sessions: [
+                        {
+                            agent: 'claude',
+                            externalSessionId: 'claude-session-1',
+                            cwd: '/work/project',
+                            timestamp: 1712131200000,
+                            transcriptPath: '/tmp/claude-session-1.jsonl',
+                            previewTitle: 'Fix the API',
+                            previewPrompt: 'Please fix the API'
+                        }
+                    ]
+                })
+            })
+        }
+
+        registry.register(socket as never, 'machine-1:list-importable-sessions')
+
+        const io = {
+            of: () => ({
+                sockets: new Map([['socket-1', socket]])
+            })
+        }
+
+        const gateway = new RpcGateway(io as never, registry)
+
+        await expect(gateway.listImportableSessions('machine-1', { agent: 'claude' })).resolves.toEqual({
+            sessions: [
+                {
+                    agent: 'claude',
+                    externalSessionId: 'claude-session-1',
+                    cwd: '/work/project',
+                    timestamp: 1712131200000,
+                    transcriptPath: '/tmp/claude-session-1.jsonl',
+                    previewTitle: 'Fix the API',
+                    previewPrompt: 'Please fix the API'
+                }
+            ]
+        })
+    })
+
     it('rejects malformed list-importable-sessions responses', async () => {
         const registry = new RpcRegistry()
 

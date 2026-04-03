@@ -8,7 +8,7 @@ import { z } from 'zod'
 import type { RpcRegistry } from '../socket/rpcRegistry'
 
 const importableCodexSessionSummarySchema = z.object({
-    agent: z.literal('codex'),
+    agent: z.union([z.literal('codex'), z.literal('claude')]),
     externalSessionId: z.string(),
     cwd: z.string().nullable(),
     timestamp: z.number().nullable(),
