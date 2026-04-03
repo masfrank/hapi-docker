@@ -13,7 +13,13 @@ import { backoff } from '@/utils/time'
 import { getInvokedCwd } from '@/utils/invokedCwd'
 import { RpcHandlerManager } from './rpc/RpcHandlerManager'
 import { registerCommonHandlers } from '../modules/common/registerCommonHandlers'
-import type { SpawnSessionOptions, SpawnSessionResult } from '../modules/common/rpcTypes'
+import type {
+    RpcListImportableSessionsRequest,
+    RpcListImportableSessionsResponse,
+    SpawnSessionOptions,
+    SpawnSessionResult
+} from '../modules/common/rpcTypes'
+import { listImportableCodexSessions } from '@/codex/utils/listImportableCodexSessions'
 import { applyVersionedAck } from './versionedUpdate'
 
 interface ServerToRunnerEvents {
@@ -101,6 +107,17 @@ export class ApiMachineClient {
     }
 
     setRPCHandlers({ spawnSession, stopSession, requestShutdown }: MachineRpcHandlers): void {
+        this.rpcHandlerManager.registerHandler<RpcListImportableSessionsRequest, RpcListImportableSessionsResponse>(
+            'list-importable-sessions',
+            async (params) => {
+                if (params?.agent !== 'codex') {
+                    return { sessions: [] }
+                }
+
+                return await listImportableCodexSessions()
+            }
+        )
+
         this.rpcHandlerManager.registerHandler('spawn-happy-session', async (params: any) => {
             const { directory, sessionId, resumeSessionId, machineId, approvedNewDirectoryCreation, agent, model, effort, modelReasoningEffort, yolo, token, sessionType, worktreeName } = params || {}
 
