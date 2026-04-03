@@ -169,9 +169,7 @@ describe('ApiMachineClient list-importable-sessions RPC', () => {
             )
         })
 
-        expect(JSON.parse(claudeResponse)).toEqual({
-            sessions: [expect.objectContaining({ agent: 'claude' })]
-        })
+        expect(JSON.parse(claudeResponse)).toEqual(importableClaudeSessionsResponse)
         expect(listImportableClaudeSessionsMock).toHaveBeenCalledTimes(1)
 
         client.shutdown()

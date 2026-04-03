@@ -66,6 +66,16 @@ describe('listImportableClaudeSessions', () => {
                 }),
                 JSON.stringify({
                     type: 'user',
+                    uuid: 'user-0',
+                    cwd: '/work/project-b',
+                    timestamp: '2026-04-04T12:00:00.500Z',
+                    message: {
+                        role: 'user',
+                        content: '<task-notification> internal Claude injection'
+                    }
+                }),
+                JSON.stringify({
+                    type: 'user',
                     uuid: 'user-1',
                     cwd: '/work/project-b',
                     timestamp: '2026-04-04T12:00:01.000Z',
@@ -75,6 +85,16 @@ describe('listImportableClaudeSessions', () => {
                             { type: 'text', text: 'Continue the' },
                             { type: 'text', text: 'refactor' }
                         ]
+                    }
+                }),
+                JSON.stringify({
+                    type: 'user',
+                    uuid: 'user-2',
+                    cwd: '/work/project-b',
+                    timestamp: '2026-04-04T12:00:03.000Z',
+                    message: {
+                        role: 'user',
+                        content: 'Ignore this later user prompt'
                     }
                 }),
                 JSON.stringify({
