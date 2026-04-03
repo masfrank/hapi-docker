@@ -200,6 +200,92 @@ describe('codexSessionScanner', () => {
         expect((parentWaitEvent as Record<string, unknown>).hapiSidechain).toBeUndefined();
     }, 10000);
 
+    it('links child Codex lifecycle entries using normalized sidechain metadata', async () => {
+        const parentSessionId = 'parent-session-2';
+        const parentToolCallId = 'spawn-call-2';
+        const childSessionId = 'child-session-2';
+        const parentFile = join(sessionsDir, `codex-${parentSessionId}.jsonl`);
+        const childFile = join(sessionsDir, `codex-${childSessionId}.jsonl`);
+        const resolvedResult: ResolveCodexSessionFileResult = {
+            status: 'found',
+            filePath: parentFile,
+            cwd: '/data/github/happy/hapi',
+            timestamp: Date.parse('2025-12-22T00:00:00.000Z')
+        };
+
+        await writeFile(
+            parentFile,
+            [
+                JSON.stringify({ type: 'session_meta', payload: { id: parentSessionId } }),
+                JSON.stringify({
+                    type: 'response_item',
+                    payload: {
+                        type: 'function_call',
+                        name: 'spawn_agent',
+                        call_id: parentToolCallId,
+                        arguments: '{"message":"delegate"}'
+                    }
+                }),
+                JSON.stringify({
+                    type: 'response_item',
+                    payload: {
+                        type: 'function_call_output',
+                        call_id: parentToolCallId,
+                        output: JSON.stringify({ agent_id: childSessionId, nickname: 'child' })
+                    }
+                })
+            ].join('\n') + '\n'
+        );
+
+        scanner = await createCodexSessionScanner({
+            sessionId: parentSessionId,
+            resolvedSessionFile: resolvedResult,
+            onEvent: (event) => events.push(event)
+        });
+
+        await wait(200);
+
+        await writeFile(
+            childFile,
+            [
+                JSON.stringify({ type: 'session_meta', payload: { id: childSessionId } }),
+                JSON.stringify({
+                    type: 'response_item',
+                    payload: {
+                        type: 'function_call_output',
+                        call_id: 'bootstrap-call-2',
+                        output: 'You are the newly spawned agent. The prior conversation history was forked from your parent agent. Treat the next user message as your new task, and use the forked history only as background context.'
+                    }
+                }),
+                JSON.stringify({
+                    type: 'subagent_title_change',
+                    title: 'child title'
+                }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'child prompt' } })
+            ].join('\n') + '\n'
+        );
+
+        await wait(2300);
+
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'subagent_title_change',
+                title: 'child title',
+                hapiSidechain: { parentToolCallId }
+            })
+        );
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'event_msg',
+                payload: expect.objectContaining({
+                    type: 'user_message',
+                    message: 'child prompt'
+                }),
+                hapiSidechain: { parentToolCallId }
+            })
+        );
+    }, 10000);
+
     it('limits session scan to dates within the start window', async () => {
         const referenceTimestampMs = Date.parse('2025-12-22T00:00:00.000Z');
         const windowMs = 2 * 60 * 1000;

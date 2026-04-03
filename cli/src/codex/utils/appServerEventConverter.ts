@@ -530,11 +530,10 @@ export class AppServerEventConverter {
                 if (server === 'hapi' && tool === 'change_title') {
                     if (parentToolCallId) {
                         if (title) {
-                            events.push({
+                            events.push(this.addSidechainMeta({
                                 type: 'subagent_title_change',
-                                title,
-                                parent_tool_call_id: parentToolCallId
-                            });
+                                title
+                            }, threadId));
                         }
                         return events;
                     }

@@ -103,8 +103,6 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     private readonly linkedChildFilePaths = new Set<string>();
     private readonly linkedChildParentCallIdByFile = new Map<string, string>();
     private readonly childTranscriptStartLineByFile = new Map<string, number>();
-    private readonly childBootstrapSeenByFile = new Set<string>();
-    private readonly childFallbackTaskStartedLineByFile = new Map<string, number>();
     private readonly pendingChildSessionIdToParentCallId = new Map<string, string>();
     private readonly targetCwd: string | null;
     private readonly referenceTimestampMs: number;
@@ -711,9 +709,6 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
             return existingStartLine;
         }
 
-        let sawBootstrapMarker = this.childBootstrapSeenByFile.has(normalizedFilePath);
-        let fallbackTaskStartedLine = this.childFallbackTaskStartedLineByFile.get(normalizedFilePath) ?? null;
-
         for (const entry of entries) {
             const payload = asRecord(entry.event.payload);
             if (!payload || entry.lineIndex === undefined) {
@@ -722,29 +717,10 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
 
             if (entry.event.type === 'response_item' && asString(payload.type) === 'function_call_output') {
                 if (stringifyOutput(payload.output).startsWith('You are the newly spawned agent.')) {
-                    sawBootstrapMarker = true;
-                    this.childBootstrapSeenByFile.add(normalizedFilePath);
+                    const startLine = entry.lineIndex + 1;
+                    this.childTranscriptStartLineByFile.set(normalizedFilePath, startLine);
+                    return startLine;
                 }
-                continue;
-            }
-
-            if (!sawBootstrapMarker) {
-                continue;
-            }
-
-            if (
-                fallbackTaskStartedLine === null
-                && entry.event.type === 'event_msg'
-                && asString(payload.type) === 'task_started'
-            ) {
-                fallbackTaskStartedLine = entry.lineIndex;
-                this.childFallbackTaskStartedLineByFile.set(normalizedFilePath, entry.lineIndex);
-            }
-
-            if (entry.event.type === 'event_msg' && asString(payload.type) === 'user_message') {
-                this.childTranscriptStartLineByFile.set(normalizedFilePath, entry.lineIndex);
-                this.childFallbackTaskStartedLineByFile.delete(normalizedFilePath);
-                return entry.lineIndex;
             }
         }
 
