@@ -1,16 +1,7 @@
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { readdir, readFile } from 'node:fs/promises';
-
-export type ImportableCodexSessionSummary = {
-    agent: 'codex';
-    externalSessionId: string;
-    cwd: string | null;
-    timestamp: number | null;
-    transcriptPath: string;
-    previewTitle: string | null;
-    previewPrompt: string | null;
-};
+import type { ImportableCodexSessionSummary } from '@hapi/protocol/rpcTypes';
 
 export type ListImportableCodexSessionsOptions = {
     rootDir?: string;
@@ -38,17 +29,27 @@ async function scanCodexTranscript(transcriptPath: string): Promise<ImportableCo
     }
 
     const lines = content.split(/\r?\n/);
-    const firstNonEmptyLineIndex = lines.findIndex((line) => line.trim().length > 0);
-    if (firstNonEmptyLineIndex === -1) {
+    const records = lines
+        .map((line, lineIndex) => ({
+            lineIndex,
+            record: parseJsonLine(line)
+        }))
+        .filter((entry): entry is { lineIndex: number; record: Record<string, unknown> } => entry.record !== null);
+
+    const sessionMetaEntries = records.filter((entry) => isSessionMetaRecord(entry.record));
+    if (sessionMetaEntries.length === 0) {
         return null;
     }
 
-    const sessionMeta = parseJsonLine(lines[firstNonEmptyLineIndex]);
-    if (!isSessionMetaRecord(sessionMeta)) {
+    const sessionMetaEntry = [...sessionMetaEntries].reverse().find((entry) => {
+        const payload = getRecord(entry.record.payload);
+        return getString(payload?.id) !== null;
+    });
+    if (!sessionMetaEntry) {
         return null;
     }
 
-    const payload = getRecord(sessionMeta.payload);
+    const payload = getRecord(sessionMetaEntry.record.payload);
     const externalSessionId = getString(payload?.id);
     if (!externalSessionId) {
         return null;
@@ -64,26 +65,20 @@ async function scanCodexTranscript(transcriptPath: string): Promise<ImportableCo
     let latestRootTitleChange: string | null = null;
     let firstRootPrompt: string | null = null;
 
-    for (let index = firstNonEmptyLineIndex + 1; index < lines.length; index += 1) {
-        const line = lines[index].trim();
-        if (!line) {
+    for (const entry of records) {
+        if (entry.lineIndex <= sessionMetaEntry.lineIndex) {
             continue;
         }
 
-        const record = parseJsonLine(line);
-        if (!record) {
-            continue;
-        }
-
-        if (isRootTitleChangeRecord(record)) {
-            const title = extractTitleFromRecord(record);
+        if (isRootTitleChangeRecord(entry.record)) {
+            const title = extractTitleFromRecord(entry.record);
             if (title) {
                 latestRootTitleChange = title;
             }
             continue;
         }
 
-        const prompt = extractRootPromptFromRecord(record);
+        const prompt = extractRootPromptFromRecord(entry.record);
         if (prompt && !firstRootPrompt) {
             firstRootPrompt = prompt;
         }
@@ -178,24 +173,24 @@ function isRootTitleChangeRecord(record: Record<string, unknown>): boolean {
 function extractTitleFromRecord(record: Record<string, unknown>): string | null {
     const payload = getRecord(record.payload);
     if (!payload) {
-        return getString(record.title) ?? null;
+        return extractTextValue(record.title);
     }
 
     const payloadType = getString(payload.type);
     if (payloadType === 'session_title_change') {
-        return getString(payload.title);
+        return extractTextValue(payload.title);
     }
 
     if (payloadType === 'function_call' || payloadType === 'mcpToolCall') {
         const argumentsValue = payload.arguments ?? payload.arguments_json ?? payload.input;
-        const argumentsRecord = parseMaybeJson(argumentsValue);
-        const title = getString(argumentsRecord?.title);
+        const argumentsValueRecord = parseMaybeJson(argumentsValue);
+        const title = extractTextValue(argumentsValueRecord?.title ?? argumentsValueRecord);
         if (title) {
-            return normalizePreviewText(title);
+            return title;
         }
     }
 
-    return getString(payload.title) ?? getString(record.title) ?? null;
+    return extractTextValue(payload.title) ?? extractTextValue(record.title);
 }
 
 function extractRootPromptFromRecord(record: Record<string, unknown>): string | null {
@@ -205,35 +200,38 @@ function extractRootPromptFromRecord(record: Record<string, unknown>): string | 
 
     const type = getString(record.type);
     const payload = getRecord(record.payload);
+    const promptSources = [
+        payload?.message,
+        payload?.text,
+        payload?.content,
+        payload?.input,
+        payload?.body,
+        record.message,
+        record.text,
+        record.content,
+        record.input,
+        record.body
+    ];
 
     if (type === 'event_msg' || type === 'event') {
         const eventType = getString(payload?.type);
-        if (eventType === 'user_message') {
-            return extractMessageFromValue(payload);
+        if (eventType === 'user_message' || eventType === 'userMessage') {
+            return extractTextValue(promptSources);
         }
     }
 
-    if (type === 'user_message') {
-        return extractMessageFromValue(record);
+    if (type === 'user_message' || type === 'userMessage') {
+        return extractTextValue(promptSources);
     }
 
     if (type === 'response_item' || type === 'item') {
         const itemType = getString(payload?.type);
-        if (itemType === 'user_message') {
-            return extractMessageFromValue(payload);
+        if (itemType === 'user_message' || itemType === 'userMessage') {
+            return extractTextValue(promptSources);
         }
     }
 
     return null;
-}
-
-function extractMessageFromValue(value: Record<string, unknown> | null): string | null {
-    if (!value) {
-        return null;
-    }
-
-    const message = getString(value.message) ?? getString(value.text) ?? getString(value.content);
-    return message ? normalizePreviewText(message) : null;
 }
 
 function isSidechainRecord(record: Record<string, unknown>): boolean {
@@ -275,6 +273,50 @@ function parseMaybeJson(value: unknown): Record<string, unknown> | null {
     }
 
     return null;
+}
+
+function extractTextValue(value: unknown): string | null {
+    const chunks = extractTextChunks(value);
+    if (chunks.length === 0) {
+        return null;
+    }
+
+    return normalizePreviewText(chunks.join(' '));
+}
+
+function extractTextChunks(value: unknown): string[] {
+    if (typeof value === 'string') {
+        const normalized = normalizePreviewText(value);
+        return normalized ? [normalized] : [];
+    }
+
+    if (Array.isArray(value)) {
+        const chunks: string[] = [];
+        for (const entry of value) {
+            chunks.push(...extractTextChunks(entry));
+        }
+        return chunks;
+    }
+
+    const record = getRecord(value);
+    if (!record) {
+        return [];
+    }
+
+    const directKeys = ['title', 'message', 'text', 'content', 'input', 'body'] as const;
+
+    for (const key of directKeys) {
+        const entryValue = record[key];
+        if (entryValue === undefined || entryValue === null) {
+            continue;
+        }
+        const chunks = extractTextChunks(entryValue);
+        if (chunks.length > 0) {
+            return chunks;
+        }
+    }
+
+    return [];
 }
 
 function parseTimestamp(value: unknown): number | null {
