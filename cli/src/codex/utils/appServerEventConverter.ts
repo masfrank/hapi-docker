@@ -186,6 +186,7 @@ export class AppServerEventConverter {
             msgType === 'turn_aborted' ||
             msgType === 'task_failed'
         ) {
+            const threadId = asString(msg.thread_id ?? msg.threadId);
             const turnId = asString(msg.turn_id ?? msg.turnId);
             if ((msgType === 'task_complete' || msgType === 'turn_aborted' || msgType === 'task_failed') && !turnId) {
                 logger.debug('[AppServerEventConverter] Ignoring wrapped terminal event without turn_id', { msgType });
@@ -202,7 +203,7 @@ export class AppServerEventConverter {
                     event.error = error;
                 }
             }
-            return [event];
+            return [this.addSidechainMeta(event, threadId)];
         }
 
         if (msgType === 'agent_message_delta' || msgType === 'agent_message_content_delta') {

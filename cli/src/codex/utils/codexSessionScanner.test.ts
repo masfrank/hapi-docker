@@ -257,16 +257,38 @@ describe('codexSessionScanner', () => {
                         output: 'You are the newly spawned agent. The prior conversation history was forked from your parent agent. Treat the next user message as your new task, and use the forked history only as background context.'
                     }
                 }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'task_started', turn_id: 'child-turn-2' } }),
                 JSON.stringify({
                     type: 'subagent_title_change',
                     title: 'child title'
                 }),
+                JSON.stringify({ type: 'event_msg', payload: { type: 'task_complete', turn_id: 'child-turn-2' } }),
                 JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'child prompt' } })
             ].join('\n') + '\n'
         );
 
         await wait(2300);
 
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'event_msg',
+                payload: expect.objectContaining({
+                    type: 'task_started',
+                    turn_id: 'child-turn-2'
+                }),
+                hapiSidechain: { parentToolCallId }
+            })
+        );
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'event_msg',
+                payload: expect.objectContaining({
+                    type: 'task_complete',
+                    turn_id: 'child-turn-2'
+                }),
+                hapiSidechain: { parentToolCallId }
+            })
+        );
         expect(events).toContainEqual(
             expect.objectContaining({
                 type: 'subagent_title_change',
