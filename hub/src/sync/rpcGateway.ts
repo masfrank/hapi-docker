@@ -1,26 +1,25 @@
 import type { CodexCollaborationMode, PermissionMode } from '@hapi/protocol/types'
+import type {
+    RpcListImportableSessionsRequest,
+    RpcListImportableSessionsResponse
+} from '@hapi/protocol/rpcTypes'
 import type { Server } from 'socket.io'
+import { z } from 'zod'
 import type { RpcRegistry } from '../socket/rpcRegistry'
 
-export type ImportableSessionAgent = 'codex'
+const importableCodexSessionSummarySchema = z.object({
+    agent: z.literal('codex'),
+    externalSessionId: z.string(),
+    cwd: z.string().nullable(),
+    timestamp: z.number().nullable(),
+    transcriptPath: z.string(),
+    previewTitle: z.string().nullable(),
+    previewPrompt: z.string().nullable()
+})
 
-export type ImportableCodexSessionSummary = {
-    agent: 'codex'
-    externalSessionId: string
-    cwd: string | null
-    timestamp: number | null
-    transcriptPath: string
-    previewTitle: string | null
-    previewPrompt: string | null
-}
-
-export type RpcListImportableSessionsRequest = {
-    agent: ImportableSessionAgent
-}
-
-export type RpcListImportableSessionsResponse = {
-    sessions: ImportableCodexSessionSummary[]
-}
+const listImportableSessionsResponseSchema = z.object({
+    sessions: z.array(importableCodexSessionSummarySchema)
+})
 
 export type RpcCommandResponse = {
     success: boolean
@@ -254,7 +253,8 @@ export class RpcGateway {
         machineId: string,
         request: RpcListImportableSessionsRequest
     ): Promise<RpcListImportableSessionsResponse> {
-        return await this.machineRpc(machineId, 'list-importable-sessions', request) as RpcListImportableSessionsResponse
+        const response = await this.machineRpc(machineId, 'list-importable-sessions', request)
+        return listImportableSessionsResponseSchema.parse(response)
     }
 
     private async sessionRpc(sessionId: string, method: string, params: unknown): Promise<unknown> {

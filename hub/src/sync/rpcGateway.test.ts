@@ -3,7 +3,7 @@ import { RpcGateway } from './rpcGateway'
 import { RpcRegistry } from '../socket/rpcRegistry'
 
 describe('RpcGateway', () => {
-    it('sends list-importable-sessions rpc requests', async () => {
+    it('sends list-importable-sessions rpc requests and parses the response shape', async () => {
         const registry = new RpcRegistry()
         const captured: Array<{ event: string; payload: { method: string; params: string } }> = []
 
@@ -12,7 +12,21 @@ describe('RpcGateway', () => {
             timeout: () => ({
                 emitWithAck: async (event: string, payload: { method: string; params: string }) => {
                     captured.push({ event, payload })
-                    return { sessions: [] }
+                    return {
+                        sessions: [
+                            {
+                                agent: 'codex',
+                                externalSessionId: 'session-1',
+                                cwd: '/tmp/project',
+                                timestamp: 123,
+                                transcriptPath: '/tmp/project/.codex/sessions/session-1.jsonl',
+                                previewTitle: 'Imported title',
+                                previewPrompt: 'Imported prompt',
+                                ignoredField: 'strip-me'
+                            }
+                        ],
+                        ignoredResponseField: true
+                    }
                 }
             })
         }
@@ -27,7 +41,19 @@ describe('RpcGateway', () => {
 
         const gateway = new RpcGateway(io as never, registry)
 
-        await expect(gateway.listImportableSessions('machine-1', { agent: 'codex' })).resolves.toEqual({ sessions: [] })
+        await expect(gateway.listImportableSessions('machine-1', { agent: 'codex' })).resolves.toEqual({
+            sessions: [
+                {
+                    agent: 'codex',
+                    externalSessionId: 'session-1',
+                    cwd: '/tmp/project',
+                    timestamp: 123,
+                    transcriptPath: '/tmp/project/.codex/sessions/session-1.jsonl',
+                    previewTitle: 'Imported title',
+                    previewPrompt: 'Imported prompt'
+                }
+            ]
+        })
         expect(captured).toEqual([
             {
                 event: 'rpc-request',
@@ -37,5 +63,40 @@ describe('RpcGateway', () => {
                 }
             }
         ])
+    })
+
+    it('rejects malformed list-importable-sessions responses', async () => {
+        const registry = new RpcRegistry()
+
+        const socket = {
+            id: 'socket-1',
+            timeout: () => ({
+                emitWithAck: async () => ({
+                    sessions: [
+                        {
+                            agent: 'codex',
+                            externalSessionId: 123,
+                            cwd: '/tmp/project',
+                            timestamp: 'not-a-number',
+                            transcriptPath: '/tmp/project/.codex/sessions/session-1.jsonl',
+                            previewTitle: null,
+                            previewPrompt: null
+                        }
+                    ]
+                })
+            })
+        }
+
+        registry.register(socket as never, 'machine-1:list-importable-sessions')
+
+        const io = {
+            of: () => ({
+                sockets: new Map([['socket-1', socket]])
+            })
+        }
+
+        const gateway = new RpcGateway(io as never, registry)
+
+        await expect(gateway.listImportableSessions('machine-1', { agent: 'codex' })).rejects.toThrow()
     })
 })

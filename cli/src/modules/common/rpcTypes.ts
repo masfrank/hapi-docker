@@ -1,3 +1,10 @@
+export type {
+    ImportableCodexSessionSummary,
+    ImportableSessionAgent,
+    RpcListImportableSessionsRequest,
+    RpcListImportableSessionsResponse
+} from '@hapi/protocol/rpcTypes'
+
 export interface SpawnSessionOptions {
     machineId?: string
     directory: string
@@ -18,23 +25,3 @@ export type SpawnSessionResult =
     | { type: 'success'; sessionId: string }
     | { type: 'requestToApproveDirectoryCreation'; directory: string }
     | { type: 'error'; errorMessage: string }
-
-export type ImportableSessionAgent = 'codex'
-
-export type ImportableCodexSessionSummary = {
-    agent: 'codex'
-    externalSessionId: string
-    cwd: string | null
-    timestamp: number | null
-    transcriptPath: string
-    previewTitle: string | null
-    previewPrompt: string | null
-}
-
-export type RpcListImportableSessionsRequest = {
-    agent: ImportableSessionAgent
-}
-
-export type RpcListImportableSessionsResponse = {
-    sessions: ImportableCodexSessionSummary[]
-}
