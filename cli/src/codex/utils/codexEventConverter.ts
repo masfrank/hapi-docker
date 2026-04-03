@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { logger } from '@/ui/logger';
+import { createSpawnMeta } from '@/subagents/normalize';
+import type { NormalizedSubagentMeta } from '@/subagents/types';
 
 const CodexSessionEventSchema = z.object({
     timestamp: z.string().optional(),
@@ -17,27 +19,35 @@ type CodexSidechainMeta = {
     parentToolCallId: string;
 };
 
+type CodexMessageMeta = {
+    subagent?: NormalizedSubagentMeta;
+};
+
 export type CodexMessage = {
     type: 'message';
     message: string;
     id: string;
+    meta?: CodexMessageMeta;
     isSidechain?: true;
     parentToolCallId?: string;
 } | {
     type: 'reasoning';
     message: string;
     id: string;
+    meta?: CodexMessageMeta;
     isSidechain?: true;
     parentToolCallId?: string;
 } | {
     type: 'reasoning-delta';
     delta: string;
+    meta?: CodexMessageMeta;
     isSidechain?: true;
     parentToolCallId?: string;
 } | {
     type: 'token_count';
     info: Record<string, unknown>;
     id: string;
+    meta?: CodexMessageMeta;
     isSidechain?: true;
     parentToolCallId?: string;
 } | {
@@ -46,6 +56,7 @@ export type CodexMessage = {
     callId: string;
     input: unknown;
     id: string;
+    meta?: CodexMessageMeta;
     isSidechain?: true;
     parentToolCallId?: string;
 } | {
@@ -53,6 +64,7 @@ export type CodexMessage = {
     callId: string;
     output: unknown;
     id: string;
+    meta?: CodexMessageMeta;
     isSidechain?: true;
     parentToolCallId?: string;
 };
@@ -93,6 +105,19 @@ function parseArguments(value: unknown): unknown {
     }
 
     return value;
+}
+
+function extractSpawnPrompt(input: unknown): string | undefined {
+    if (!input || typeof input !== 'object') {
+        return undefined;
+    }
+
+    const record = input as Record<string, unknown>;
+    return asString(record.message)
+        ?? asString(record.prompt)
+        ?? asString(record.text)
+        ?? asString(record.content)
+        ?? undefined;
 }
 
 function getSidechainMeta(rawEvent: z.infer<typeof CodexSessionEventSchema>): CodexSidechainMeta | null {
@@ -269,13 +294,24 @@ export function convertCodexEvent(rawEvent: unknown): CodexConversionResult | nu
             if (!name || !callId) {
                 return null;
             }
+            const input = parseArguments(payloadRecord.arguments);
             return {
                 message: applySidechainMeta({
                     type: 'tool-call',
                     name: normalizeCodexToolName(name),
                     callId,
-                    input: parseArguments(payloadRecord.arguments),
-                    id: randomUUID()
+                    input,
+                    id: randomUUID(),
+                    ...(name === 'spawn_agent'
+                        ? {
+                            meta: {
+                                subagent: createSpawnMeta({
+                                    sidechainKey: callId,
+                                    prompt: extractSpawnPrompt(input)
+                                })
+                            }
+                        }
+                        : {})
                 }, sidechainMeta)
             };
         }

@@ -121,6 +121,31 @@ describe('convertCodexEvent', () => {
         });
     });
 
+    it('normalizes Codex spawn_agent events into subagent metadata', () => {
+        const result = convertCodexEvent({
+            type: 'response_item',
+            payload: {
+                type: 'function_call',
+                name: 'spawn_agent',
+                call_id: 'spawn-1',
+                arguments: '{"message":"delegate search task"}'
+            }
+        });
+
+        expect(result?.message).toMatchObject({
+            type: 'tool-call',
+            name: 'CodexSpawnAgent',
+            callId: 'spawn-1',
+            meta: expect.objectContaining({
+                subagent: {
+                    kind: 'spawn',
+                    sidechainKey: 'spawn-1',
+                    prompt: 'delegate search task'
+                }
+            })
+        });
+    });
+
     it('preserves sidechain metadata on user and agent/tool messages', () => {
         const userResult = convertCodexEvent({
             type: 'event_msg',
