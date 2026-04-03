@@ -8,6 +8,7 @@ const harness = vi.hoisted(() => ({
     remoteCalls: [] as Array<Record<string, unknown>>,
     metadataUpdates: [] as Array<Record<string, unknown>>,
     sessionEvents: [] as Array<Record<string, unknown>>,
+    replayMetaMessages: [] as Array<Record<string, unknown>>,
     rpcHandlers: new Map<string, (params?: unknown) => Promise<unknown> | unknown>(),
     expectedReplaySessionId: 'resume-session-123',
 }))
@@ -212,6 +213,7 @@ describe('claudeRemoteLauncher', () => {
         harness.remoteCalls = []
         harness.metadataUpdates = []
         harness.sessionEvents = []
+        harness.replayMetaMessages = []
         harness.rpcHandlers = new Map()
         harness.expectedReplaySessionId = 'resume-session-123'
     })
@@ -222,9 +224,9 @@ describe('claudeRemoteLauncher', () => {
             { type: 'assistant', uuid: 'a1', message: { content: [{ type: 'text', text: 'existing assistant reply' }] } }
         ]
 
-        const { session, sentClaudeMessages } = createSessionStub()
+        const { session: liveSession, sentClaudeMessages } = createSessionStub()
 
-        await claudeRemoteLauncher(session as never)
+        await claudeRemoteLauncher(liveSession as never)
 
         expect(harness.scannerCalls).toEqual([
             expect.objectContaining({
@@ -304,39 +306,47 @@ describe('claudeRemoteLauncher', () => {
             }
         ]
 
-        harness.replayMessages = [
-            {
-                type: 'assistant',
-                uuid: 'a1',
-                meta: {
-                    subagent: {
-                        kind: 'title',
-                        sidechainKey: 'task-1',
-                        title: 'Replay title'
-                    }
-                },
-                message: {
-                    role: 'assistant',
-                    content: [{ type: 'text', text: 'replayed assistant reply' }]
-                }
-            }
-        ]
-
         const { session, sentClaudeMessages } = createSessionStub()
 
         await claudeRemoteLauncher(session as never)
 
+        const persistedReplayMeta = sentClaudeMessages.find((message) => {
+            if (message.type !== 'system' || message.isMeta !== true) {
+                return false
+            }
+
+            const subagent = (message.meta as Record<string, unknown> | undefined)?.subagent
+            return Array.isArray(subagent)
+        })
+
+        expect(persistedReplayMeta).toEqual(expect.objectContaining({
+            type: 'system',
+            isMeta: true,
+            meta: expect.objectContaining({
+                subagent: expect.arrayContaining([
+                    expect.objectContaining({
+                        kind: 'status',
+                        sidechainKey: 'task-1',
+                        status: 'completed'
+                    }),
+                    expect.objectContaining({
+                        kind: 'title',
+                        sidechainKey: 'task-1',
+                        title: 'Investigate test failure'
+                    })
+                ])
+            })
+        }))
+
+        harness.replayMessages = [persistedReplayMeta as Record<string, unknown>]
+        harness.metadataUpdates = []
+        harness.sessionEvents = []
+        harness.remoteMessages = []
+        const { session: replaySession, sentClaudeMessages: replaySentClaudeMessages } = createSessionStub()
+
+        await claudeRemoteLauncher(replaySession as never)
+
         expect(harness.metadataUpdates).toEqual([
-            expect.objectContaining({
-                summary: expect.objectContaining({
-                    text: 'Replay title'
-                })
-            }),
-            expect.objectContaining({
-                summary: expect.objectContaining({
-                    text: 'Investigate test failure'
-                })
-            }),
             expect.objectContaining({
                 summary: expect.objectContaining({
                     text: 'Investigate test failure'
@@ -349,6 +359,7 @@ describe('claudeRemoteLauncher', () => {
             sidechainKey: 'task-1',
             status: 'completed'
         })
+        expect(replaySentClaudeMessages.some((message) => message.type === 'system' && message.isMeta === true)).toBe(false)
 
         expect(sentClaudeMessages).toEqual(expect.arrayContaining([
             expect.objectContaining({
@@ -361,5 +372,7 @@ describe('claudeRemoteLauncher', () => {
                 })
             })
         ]))
+
+        expect(harness.scannerCalls).toHaveLength(2)
     })
 })

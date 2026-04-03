@@ -270,6 +270,11 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
 
             const logMessage = sdkToLogConverter.convert(msg);
             if (logMessage) {
+                if (logMessage.isMeta === true) {
+                    session.client.sendClaudeSessionMessage(logMessage);
+                    return;
+                }
+
                 if (logMessage.type === 'user' && logMessage.message?.content) {
                     const content = Array.isArray(logMessage.message.content)
                         ? logMessage.message.content

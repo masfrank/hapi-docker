@@ -15,6 +15,7 @@ import type {
 import type { RawJSONLines } from '@/claude/types'
 import type { NormalizedSubagentMeta } from '@/subagents/types'
 import type { ClaudePermissionMode } from '@hapi/protocol/types'
+import { extractClaudeSubagentMeta } from './claudeSubagentAdapter'
 
 /**
  * Context for converting SDK messages to log format
@@ -35,7 +36,7 @@ type PermissionResponse = {
 
 type LogMessageWithSubagentMeta = RawJSONLines & {
     meta?: {
-        subagent?: NormalizedSubagentMeta
+        subagent?: NormalizedSubagentMeta | NormalizedSubagentMeta[]
     }
 }
 
@@ -196,9 +197,28 @@ export class SDKToLogConverter {
             }
 
             case 'result': {
-                // Result messages are not converted to log messages
-                // They're SDK-specific messages that indicate session completion
-                // Not part of the actual conversation log
+                const subagentMeta = extractClaudeSubagentMeta(sdkMessage)
+                    .filter((meta) => meta.kind === 'status' || meta.kind === 'title')
+
+                if (subagentMeta.length === 0) {
+                    break
+                }
+
+                logMessage = {
+                    type: 'system',
+                    subtype: 'subagent_meta',
+                    isMeta: true,
+                    uuid,
+                    parentUuid,
+                    cwd: this.context.cwd,
+                    sessionId: this.context.sessionId,
+                    version: this.context.version,
+                    gitBranch: this.context.gitBranch,
+                    timestamp,
+                    meta: {
+                        subagent: subagentMeta
+                    }
+                } as LogMessageWithSubagentMeta
                 break
             }
 
@@ -241,7 +261,7 @@ export class SDKToLogConverter {
         }
 
         // Update last UUID for parent tracking
-        if (logMessage && logMessage.type !== 'summary') {
+        if (logMessage && logMessage.type !== 'summary' && logMessage.isMeta !== true) {
             this.lastUuid = uuid
         }
 
