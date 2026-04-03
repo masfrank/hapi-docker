@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
-import type { ImportableSessionView } from '@/types/api'
+import type { ImportableSessionAgent, ImportableSessionView } from '@/types/api'
 import { queryKeys } from '@/lib/query-keys'
 
 export function useImportableSessions(
     api: ApiClient | null,
-    agent: 'codex',
+    agent: ImportableSessionAgent,
     enabled: boolean
 ): {
     sessions: ImportableSessionView[]
@@ -14,7 +14,7 @@ export function useImportableSessions(
     refetch: () => Promise<unknown>
 } {
     const query = useQuery({
-        queryKey: queryKeys.importableSessions(agent),
+        queryKey: ['importable-sessions', agent] as const,
         queryFn: async () => {
             if (!api) {
                 throw new Error('API unavailable')

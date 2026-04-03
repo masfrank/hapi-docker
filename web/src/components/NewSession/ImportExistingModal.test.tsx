@@ -45,7 +45,7 @@ describe('ImportExistingModal', () => {
         })
     })
 
-    it('shows imported-session actions and disables the Claude tab', () => {
+    it('shows imported-session actions for Codex by default', () => {
         useImportableSessionsMock.mockReturnValue({
             sessions: [{
                 agent: 'codex',
@@ -67,7 +67,8 @@ describe('ImportExistingModal', () => {
 
         expect(screen.getByRole('button', { name: 'Open in HAPI' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Refresh from source' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Claude' })).toBeDisabled()
+        expect(useImportableSessionsMock).toHaveBeenCalledWith(expect.anything(), 'codex', true)
+        expect(useImportableSessionActionsMock).toHaveBeenCalledWith(expect.anything(), 'codex')
     })
 
     it('shows import action for not-yet-imported sessions', () => {
@@ -142,5 +143,51 @@ describe('ImportExistingModal', () => {
         await vi.waitFor(() => {
             expect(onOpenSession).toHaveBeenCalledWith('hapi-imported-1')
         })
+    })
+
+    it('switches to the Claude tab and loads Claude sessions with the same action model', () => {
+        const refreshSession = vi.fn()
+        const onOpenSession = vi.fn()
+
+        useImportableSessionsMock.mockImplementation((_api: unknown, agent: 'codex' | 'claude') => ({
+            sessions: agent === 'claude'
+                ? [{
+                    agent: 'claude',
+                    externalSessionId: 'claude-external-1',
+                    cwd: '/tmp/claude-project',
+                    timestamp: 321,
+                    transcriptPath: '/tmp/claude-project/session.jsonl',
+                    previewTitle: 'Claude imported title',
+                    previewPrompt: 'Claude prompt preview',
+                    alreadyImported: true,
+                    importedHapiSessionId: 'hapi-claude-1',
+                }]
+                : [],
+            isLoading: false,
+            error: null,
+            refetch: vi.fn(),
+        }))
+        useImportableSessionActionsMock.mockImplementation((_api: unknown, agent: 'codex' | 'claude') => ({
+            importSession: vi.fn(),
+            refreshSession: agent === 'claude' ? refreshSession : vi.fn(),
+            importingSessionId: null,
+            refreshingSessionId: null,
+            error: null,
+        }))
+
+        renderModal({ onOpenSession })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Claude' }))
+
+        expect(useImportableSessionsMock).toHaveBeenLastCalledWith(expect.anything(), 'claude', true)
+        expect(useImportableSessionActionsMock).toHaveBeenLastCalledWith(expect.anything(), 'claude')
+        expect(screen.getByRole('button', { name: 'Open in HAPI' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Refresh from source' })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open in HAPI' }))
+        expect(onOpenSession).toHaveBeenCalledWith('hapi-claude-1')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh from source' }))
+        expect(refreshSession).toHaveBeenCalledWith('claude-external-1')
     })
 })

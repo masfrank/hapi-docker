@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
-import type { ExternalSessionActionResponse } from '@/types/api'
+import type { ExternalSessionActionResponse, ImportableSessionAgent } from '@/types/api'
 import { queryKeys } from '@/lib/query-keys'
 
-export function useImportableSessionActions(api: ApiClient | null, agent: 'codex'): {
+export function useImportableSessionActions(api: ApiClient | null, agent: ImportableSessionAgent): {
     importSession: (externalSessionId: string) => Promise<ExternalSessionActionResponse>
     refreshSession: (externalSessionId: string) => Promise<ExternalSessionActionResponse>
     importingSessionId: string | null
@@ -15,7 +15,7 @@ export function useImportableSessionActions(api: ApiClient | null, agent: 'codex
     const invalidate = async () => {
         await Promise.all([
             queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.importableSessions(agent) }),
+            queryClient.invalidateQueries({ queryKey: ['importable-sessions', agent] as const }),
         ])
     }
 
