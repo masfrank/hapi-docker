@@ -5,7 +5,7 @@ import type { WebAppEnv } from '../middleware/auth'
 import { requireSyncEngine } from './guards'
 
 const querySchema = z.object({
-    agent: z.literal('codex')
+    agent: z.union([z.literal('codex'), z.literal('claude')])
 })
 
 export function createImportableSessionsRoutes(getSyncEngine: () => SyncEngine | null): Hono<WebAppEnv> {
@@ -32,14 +32,18 @@ export function createImportableSessionsRoutes(getSyncEngine: () => SyncEngine |
         }
 
         const namespace = c.get('namespace')
-        const result = await engine.listImportableCodexSessions(namespace)
+        const result = parsed.data.agent === 'codex'
+            ? await engine.listImportableCodexSessions(namespace)
+            : await engine.listImportableClaudeSessions(namespace)
         if (result.type === 'error') {
             const status = result.code === 'no_machine_online' ? 503 : 500
             return c.json({ error: result.message, code: result.code }, status)
         }
 
         const sessions = result.sessions.map((session) => {
-            const existing = engine.findSessionByExternalCodexSessionId(namespace, session.externalSessionId)
+            const existing = parsed.data.agent === 'codex'
+                ? engine.findSessionByExternalCodexSessionId(namespace, session.externalSessionId)
+                : engine.findSessionByExternalClaudeSessionId(namespace, session.externalSessionId)
             return {
                 ...session,
                 alreadyImported: Boolean(existing),
@@ -75,6 +79,38 @@ export function createImportableSessionsRoutes(getSyncEngine: () => SyncEngine |
         const namespace = c.get('namespace')
         const externalSessionId = c.req.param('externalSessionId')
         const result = await engine.refreshExternalCodexSession(externalSessionId, namespace)
+        if (result.type === 'error') {
+            return c.json({ error: result.message, code: result.code }, mapActionErrorStatus(result.code) as never)
+        }
+
+        return c.json({ type: 'success', sessionId: result.sessionId })
+    })
+
+    app.post('/importable-sessions/claude/:externalSessionId/import', async (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) {
+            return engine
+        }
+
+        const namespace = c.get('namespace')
+        const externalSessionId = c.req.param('externalSessionId')
+        const result = await engine.importExternalClaudeSession(externalSessionId, namespace)
+        if (result.type === 'error') {
+            return c.json({ error: result.message, code: result.code }, mapActionErrorStatus(result.code) as never)
+        }
+
+        return c.json({ type: 'success', sessionId: result.sessionId })
+    })
+
+    app.post('/importable-sessions/claude/:externalSessionId/refresh', async (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) {
+            return engine
+        }
+
+        const namespace = c.get('namespace')
+        const externalSessionId = c.req.param('externalSessionId')
+        const result = await engine.refreshExternalClaudeSession(externalSessionId, namespace)
         if (result.type === 'error') {
             return c.json({ error: result.message, code: result.code }, mapActionErrorStatus(result.code) as never)
         }

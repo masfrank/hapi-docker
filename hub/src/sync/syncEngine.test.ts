@@ -563,3 +563,222 @@ describe('SyncEngine codex import orchestration', () => {
         }
     })
 })
+
+describe('SyncEngine claude import orchestration', () => {
+    it('returns the existing hapi session when the external claude session is already imported', async () => {
+        const store = new Store(':memory:')
+        const engine = new SyncEngine(
+            store,
+            {} as never,
+            new RpcRegistry(),
+            { broadcast() {} } as never
+        )
+
+        try {
+            const session = engine.getOrCreateSession(
+                'import-existing',
+                {
+                    path: '/tmp/project',
+                    host: 'localhost',
+                    flavor: 'claude',
+                    claudeSessionId: 'claude-thread-1'
+                },
+                null,
+                'default'
+            )
+
+            const result = await engine.importExternalClaudeSession('claude-thread-1', 'default')
+
+            expect(result).toEqual({
+                type: 'success',
+                sessionId: session.id
+            })
+        } finally {
+            engine.stop()
+        }
+    })
+
+    it('imports a claude session by resuming the external session id on an online machine', async () => {
+        const store = new Store(':memory:')
+        const engine = new SyncEngine(
+            store,
+            {} as never,
+            new RpcRegistry(),
+            { broadcast() {} } as never
+        )
+
+        try {
+            const machine = engine.getOrCreateMachine(
+                'machine-1',
+                { host: 'localhost', platform: 'linux', happyCliVersion: '0.1.0' },
+                null,
+                'default'
+            )
+            engine.handleMachineAlive({ machineId: machine.id, time: Date.now() })
+
+            let capturedSpawnArgs: unknown[] | null = null
+            ;(engine as any).rpcGateway.listImportableSessions = async (_machineId: string, request: { agent: string }) => {
+                expect(request).toEqual({ agent: 'claude' })
+                return {
+                    sessions: [
+                        {
+                            agent: 'claude',
+                            externalSessionId: 'claude-thread-1',
+                            cwd: '/tmp/project',
+                            timestamp: 123,
+                            transcriptPath: '/tmp/project/.claude/projects/project/claude-thread-1.jsonl',
+                            previewTitle: 'Imported Claude title',
+                            previewPrompt: 'Imported Claude prompt'
+                        }
+                    ]
+                }
+            }
+            ;(engine as any).rpcGateway.spawnSession = async (...args: unknown[]) => {
+                capturedSpawnArgs = args
+                const imported = engine.getOrCreateSession(
+                    'spawned-claude-session',
+                    {
+                        path: '/tmp/project',
+                        host: 'localhost',
+                        machineId: 'machine-1',
+                        flavor: 'claude',
+                        claudeSessionId: 'claude-thread-1'
+                    },
+                    null,
+                    'default'
+                )
+                return { type: 'success', sessionId: imported.id }
+            }
+            ;(engine as any).waitForSessionActive = async () => true
+
+            const result = await engine.importExternalClaudeSession('claude-thread-1', 'default')
+
+            expect(result.type).toBe('success')
+            if (result.type !== 'success') {
+                throw new Error(result.message)
+            }
+            if (capturedSpawnArgs === null) {
+                throw new Error('spawn args were not captured')
+            }
+            const importSpawnArgs = capturedSpawnArgs as unknown[]
+            if (importSpawnArgs.length !== 10) {
+                throw new Error(`unexpected spawn args length: ${importSpawnArgs.length}`)
+            }
+            if (importSpawnArgs[0] !== 'machine-1') {
+                throw new Error(`unexpected spawn target: ${String(importSpawnArgs[0])}`)
+            }
+            if (importSpawnArgs[1] !== '/tmp/project') {
+                throw new Error(`unexpected spawn directory: ${String(importSpawnArgs[1])}`)
+            }
+            if (importSpawnArgs[2] !== 'claude') {
+                throw new Error(`unexpected spawn agent: ${String(importSpawnArgs[2])}`)
+            }
+            if (importSpawnArgs[8] !== 'claude-thread-1') {
+                throw new Error(`unexpected resume session id: ${String(importSpawnArgs[8])}`)
+            }
+            expect(engine.getSession(result.sessionId)?.metadata?.name).toBe('Imported Claude title')
+        } finally {
+            engine.stop()
+        }
+    })
+
+    it('refreshes an imported claude session in place', async () => {
+        const store = new Store(':memory:')
+        const engine = new SyncEngine(
+            store,
+            {} as never,
+            new RpcRegistry(),
+            { broadcast() {} } as never
+        )
+
+        try {
+            const machine = engine.getOrCreateMachine(
+                'machine-1',
+                { host: 'localhost', platform: 'linux', happyCliVersion: '0.1.0' },
+                null,
+                'default'
+            )
+            engine.handleMachineAlive({ machineId: machine.id, time: Date.now() })
+
+            const imported = engine.getOrCreateSession(
+                'imported-claude-session',
+                {
+                    path: '/tmp/project',
+                    host: 'localhost',
+                    machineId: 'machine-1',
+                    flavor: 'claude',
+                    claudeSessionId: 'claude-thread-1'
+                },
+                null,
+                'default'
+            )
+
+            let capturedSpawnArgs: unknown[] | null = null
+            ;(engine as any).rpcGateway.listImportableSessions = async (_machineId: string, request: { agent: string }) => {
+                expect(request).toEqual({ agent: 'claude' })
+                return {
+                    sessions: [
+                        {
+                            agent: 'claude',
+                            externalSessionId: 'claude-thread-1',
+                            cwd: '/tmp/project',
+                            timestamp: 123,
+                            transcriptPath: '/tmp/project/.claude/projects/project/claude-thread-1.jsonl',
+                            previewTitle: null,
+                            previewPrompt: 'Prompt fallback title'
+                        }
+                    ]
+                }
+            }
+            ;(engine as any).rpcGateway.spawnSession = async (...args: unknown[]) => {
+                capturedSpawnArgs = args
+                const spawned = engine.getOrCreateSession(
+                    'spawned-claude-session',
+                    {
+                        path: '/tmp/project',
+                        host: 'localhost',
+                        machineId: 'machine-1',
+                        flavor: 'claude',
+                        claudeSessionId: 'claude-thread-1'
+                    },
+                    null,
+                    'default'
+                )
+                return { type: 'success', sessionId: spawned.id }
+            }
+            ;(engine as any).waitForSessionActive = async () => true
+
+            const result = await engine.refreshExternalClaudeSession('claude-thread-1', 'default')
+
+            expect(result).toEqual({
+                type: 'success',
+                sessionId: imported.id
+            })
+            if (capturedSpawnArgs === null) {
+                throw new Error('spawn args were not captured')
+            }
+            const refreshSpawnArgs = capturedSpawnArgs as unknown[]
+            if (refreshSpawnArgs.length !== 10) {
+                throw new Error(`unexpected spawn args length: ${refreshSpawnArgs.length}`)
+            }
+            if (refreshSpawnArgs[0] !== 'machine-1') {
+                throw new Error(`unexpected spawn target: ${String(refreshSpawnArgs[0])}`)
+            }
+            if (refreshSpawnArgs[1] !== '/tmp/project') {
+                throw new Error(`unexpected spawn directory: ${String(refreshSpawnArgs[1])}`)
+            }
+            if (refreshSpawnArgs[2] !== 'claude') {
+                throw new Error(`unexpected spawn agent: ${String(refreshSpawnArgs[2])}`)
+            }
+            if (refreshSpawnArgs[8] !== 'claude-thread-1') {
+                throw new Error(`unexpected resume session id: ${String(refreshSpawnArgs[8])}`)
+            }
+            expect(engine.findSessionByExternalClaudeSessionId('default', 'claude-thread-1')).toEqual({
+                sessionId: imported.id
+            })
+            expect(engine.getSession(imported.id)?.metadata?.name).toBe('Prompt fallback title')
+        } finally {
+            engine.stop()
+        }
+    })
+})

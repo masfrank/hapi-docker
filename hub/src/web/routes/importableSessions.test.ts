@@ -102,6 +102,48 @@ describe('importable sessions routes', () => {
         })
     })
 
+    it('lists claude importable sessions with imported status', async () => {
+        const engine = {
+            listImportableClaudeSessions: async () => ({
+                type: 'success' as const,
+                machineId: 'machine-1',
+                sessions: [
+                    {
+                        agent: 'claude' as const,
+                        externalSessionId: 'external-1',
+                        cwd: '/tmp/project',
+                        timestamp: 123,
+                        transcriptPath: '/tmp/project/.claude/projects/project/external-1.jsonl',
+                        previewTitle: 'Imported Claude title',
+                        previewPrompt: 'Imported Claude prompt'
+                    }
+                ]
+            }),
+            findSessionByExternalClaudeSessionId: () => ({ sessionId: 'hapi-claude-123' })
+        }
+
+        const app = createApp(engine)
+
+        const response = await app.request('/api/importable-sessions?agent=claude')
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({
+            sessions: [
+                {
+                    agent: 'claude',
+                    externalSessionId: 'external-1',
+                    cwd: '/tmp/project',
+                    timestamp: 123,
+                    transcriptPath: '/tmp/project/.claude/projects/project/external-1.jsonl',
+                    previewTitle: 'Imported Claude title',
+                    previewPrompt: 'Imported Claude prompt',
+                    alreadyImported: true,
+                    importedHapiSessionId: 'hapi-claude-123'
+                }
+            ]
+        })
+    })
+
     it('imports an external codex session', async () => {
         const captured: Array<{ externalSessionId: string; namespace: string }> = []
         const engine = {
@@ -155,6 +197,68 @@ describe('importable sessions routes', () => {
         expect(await response.json()).toEqual({
             type: 'success',
             sessionId: 'hapi-123'
+        })
+        expect(captured).toEqual([
+            {
+                externalSessionId: 'external-1',
+                namespace: 'default'
+            }
+        ])
+    })
+
+    it('imports an external claude session', async () => {
+        const captured: Array<{ externalSessionId: string; namespace: string }> = []
+        const engine = {
+            importExternalClaudeSession: async (externalSessionId: string, namespace: string) => {
+                captured.push({ externalSessionId, namespace })
+                return {
+                    type: 'success' as const,
+                    sessionId: 'hapi-claude-123'
+                }
+            }
+        }
+
+        const app = createApp(engine)
+
+        const response = await app.request('/api/importable-sessions/claude/external-1/import', {
+            method: 'POST'
+        })
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({
+            type: 'success',
+            sessionId: 'hapi-claude-123'
+        })
+        expect(captured).toEqual([
+            {
+                externalSessionId: 'external-1',
+                namespace: 'default'
+            }
+        ])
+    })
+
+    it('refreshes an external claude session in place', async () => {
+        const captured: Array<{ externalSessionId: string; namespace: string }> = []
+        const engine = {
+            refreshExternalClaudeSession: async (externalSessionId: string, namespace: string) => {
+                captured.push({ externalSessionId, namespace })
+                return {
+                    type: 'success' as const,
+                    sessionId: 'hapi-claude-123'
+                }
+            }
+        }
+
+        const app = createApp(engine)
+
+        const response = await app.request('/api/importable-sessions/claude/external-1/refresh', {
+            method: 'POST'
+        })
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({
+            type: 'success',
+            sessionId: 'hapi-claude-123'
         })
         expect(captured).toEqual([
             {

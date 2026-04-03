@@ -43,17 +43,24 @@ export type ResumeSessionResult =
     | { type: 'success'; sessionId: string }
     | { type: 'error'; message: string; code: 'session_not_found' | 'access_denied' | 'no_machine_online' | 'resume_unavailable' | 'resume_failed' }
 
-export type ImportExternalCodexSessionResult =
+type ImportExternalAgentSessionResult =
     | { type: 'success'; sessionId: string }
     | { type: 'error'; message: string; code: 'session_not_found' | 'no_machine_online' | 'import_failed' }
 
-export type RefreshExternalCodexSessionResult =
+type RefreshExternalAgentSessionResult =
     | { type: 'success'; sessionId: string }
     | { type: 'error'; message: string; code: 'session_not_found' | 'no_machine_online' | 'resume_unavailable' | 'refresh_failed' }
 
-export type ListImportableCodexSessionsResult =
+type ListImportableAgentSessionsResult =
     | { type: 'success'; machineId: string; sessions: RpcListImportableSessionsResponse['sessions'] }
     | { type: 'error'; message: string; code: 'no_machine_online' | 'importable_sessions_failed' }
+
+export type ImportExternalCodexSessionResult = ImportExternalAgentSessionResult
+export type ImportExternalClaudeSessionResult = ImportExternalAgentSessionResult
+export type RefreshExternalCodexSessionResult = RefreshExternalAgentSessionResult
+export type RefreshExternalClaudeSessionResult = RefreshExternalAgentSessionResult
+export type ListImportableCodexSessionsResult = ListImportableAgentSessionsResult
+export type ListImportableClaudeSessionsResult = ListImportableAgentSessionsResult
 
 export class SyncEngine {
     private readonly eventPublisher: EventPublisher
@@ -164,153 +171,24 @@ export class SyncEngine {
         return this.sessionCache.findSessionByExternalCodexSessionId(namespace, externalSessionId)
     }
 
+    findSessionByExternalClaudeSessionId(namespace: string, externalSessionId: string): { sessionId: string } | null {
+        return this.sessionCache.findSessionByExternalClaudeSessionId(namespace, externalSessionId)
+    }
+
     async importExternalCodexSession(externalSessionId: string, namespace: string): Promise<ImportExternalCodexSessionResult> {
-        const existing = this.findSessionByExternalCodexSessionId(namespace, externalSessionId)
-        if (existing) {
-            return { type: 'success', sessionId: existing.sessionId }
-        }
+        return await this.importExternalSession(externalSessionId, namespace, 'codex')
+    }
 
-        const sourceResult = await this.findImportableCodexSessionSource(namespace, externalSessionId)
-        if (sourceResult.type === 'error') {
-            return {
-                type: 'error',
-                message: sourceResult.message,
-                code: sourceResult.code === 'no_machine_online' || sourceResult.code === 'session_not_found'
-                    ? sourceResult.code
-                    : 'import_failed'
-            }
-        }
-
-        const cwd = sourceResult.session.cwd
-        if (typeof cwd !== 'string' || cwd.length === 0) {
-            return {
-                type: 'error',
-                message: 'Importable Codex session is missing cwd',
-                code: 'import_failed'
-            }
-        }
-
-        const spawnResult = await this.rpcGateway.spawnSession(
-            sourceResult.machineId,
-            cwd,
-            'codex',
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            externalSessionId,
-            undefined
-        )
-
-        if (spawnResult.type !== 'success') {
-            return {
-                type: 'error',
-                message: spawnResult.message,
-                code: 'import_failed'
-            }
-        }
-
-        if (!(await this.waitForSessionActive(spawnResult.sessionId))) {
-            this.discardSpawnedSession(spawnResult.sessionId, namespace)
-            return {
-                type: 'error',
-                message: 'Session failed to become active',
-                code: 'import_failed'
-            }
-        }
-
-        const importedTitle = this.getBestImportableCodexSessionTitle(sourceResult.session)
-        await this.applyImportableCodexSessionTitle(spawnResult.sessionId, importedTitle)
-
-        return { type: 'success', sessionId: spawnResult.sessionId }
+    async importExternalClaudeSession(externalSessionId: string, namespace: string): Promise<ImportExternalClaudeSessionResult> {
+        return await this.importExternalSession(externalSessionId, namespace, 'claude')
     }
 
     async refreshExternalCodexSession(externalSessionId: string, namespace: string): Promise<RefreshExternalCodexSessionResult> {
-        const existing = this.findSessionByExternalCodexSessionId(namespace, externalSessionId)
-        if (!existing) {
-            return {
-                type: 'error',
-                message: 'Imported session not found',
-                code: 'session_not_found'
-            }
-        }
+        return await this.refreshExternalSession(externalSessionId, namespace, 'codex')
+    }
 
-        const access = this.sessionCache.resolveSessionAccess(existing.sessionId, namespace)
-        if (!access.ok) {
-            return {
-                type: 'error',
-                message: access.reason === 'access-denied' ? 'Session access denied' : 'Imported session not found',
-                code: access.reason === 'access-denied' ? 'session_not_found' : 'session_not_found'
-            }
-        }
-
-        const session = access.session
-        const metadata = session.metadata
-        if (!metadata || typeof metadata.path !== 'string') {
-            return {
-                type: 'error',
-                message: 'Session metadata missing path',
-                code: 'resume_unavailable'
-            }
-        }
-
-        const targetMachine = this.selectOnlineMachine(namespace, metadata)
-        if (!targetMachine) {
-            return {
-                type: 'error',
-                message: 'No machine online',
-                code: 'no_machine_online'
-            }
-        }
-
-        const spawnResult = await this.rpcGateway.spawnSession(
-            targetMachine.id,
-            metadata.path,
-            'codex',
-            session.model ?? undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            externalSessionId,
-            session.effort ?? undefined
-        )
-
-        if (spawnResult.type !== 'success') {
-            return {
-                type: 'error',
-                message: spawnResult.message,
-                code: 'refresh_failed'
-            }
-        }
-
-        if (!(await this.waitForSessionActive(spawnResult.sessionId))) {
-            this.discardSpawnedSession(spawnResult.sessionId, namespace)
-            return {
-                type: 'error',
-                message: 'Session failed to become active',
-                code: 'refresh_failed'
-            }
-        }
-
-        const importedTitle = await this.resolveImportableCodexSessionTitle(namespace, externalSessionId)
-        await this.applyImportableCodexSessionTitle(spawnResult.sessionId, importedTitle)
-
-        if (spawnResult.sessionId !== access.sessionId) {
-            try {
-                await this.sessionCache.mergeSessions(spawnResult.sessionId, access.sessionId, namespace)
-            } catch (error) {
-                this.discardSpawnedSession(spawnResult.sessionId, namespace)
-                return {
-                    type: 'error',
-                    message: error instanceof Error ? error.message : 'Failed to refresh imported session',
-                    code: 'refresh_failed'
-                }
-            }
-        }
-
-        return { type: 'success', sessionId: access.sessionId }
+    async refreshExternalClaudeSession(externalSessionId: string, namespace: string): Promise<RefreshExternalClaudeSessionResult> {
+        return await this.refreshExternalSession(externalSessionId, namespace, 'claude')
     }
 
     getMessagesPage(sessionId: string, options: { limit: number; beforeSeq: number | null }): {
@@ -586,30 +464,11 @@ export class SyncEngine {
     }
 
     async listImportableCodexSessions(namespace: string): Promise<ListImportableCodexSessionsResult> {
-        const onlineMachines = this.machineCache.getOnlineMachinesByNamespace(namespace)
-        const targetMachine = onlineMachines[0]
-        if (!targetMachine) {
-            return {
-                type: 'error',
-                message: 'No machine online',
-                code: 'no_machine_online'
-            }
-        }
+        return await this.listImportableSessionsByAgent(namespace, 'codex')
+    }
 
-        try {
-            const response = await this.rpcGateway.listImportableSessions(targetMachine.id, { agent: 'codex' })
-            return {
-                type: 'success',
-                machineId: targetMachine.id,
-                sessions: response.sessions
-            }
-        } catch (error) {
-            return {
-                type: 'error',
-                message: error instanceof Error ? error.message : 'Failed to list importable sessions',
-                code: 'importable_sessions_failed'
-            }
-        }
+    async listImportableClaudeSessions(namespace: string): Promise<ListImportableClaudeSessionsResult> {
+        return await this.listImportableSessionsByAgent(namespace, 'claude')
     }
 
     async waitForSessionActive(sessionId: string, timeoutMs: number = 15_000): Promise<boolean> {
@@ -622,6 +481,207 @@ export class SyncEngine {
             await new Promise((resolve) => setTimeout(resolve, 250))
         }
         return false
+    }
+
+    private getImportableAgentLabel(agent: 'codex' | 'claude'): 'Codex' | 'Claude' {
+        return agent === 'codex' ? 'Codex' : 'Claude'
+    }
+
+    private findSessionByExternalSessionId(
+        namespace: string,
+        externalSessionId: string,
+        agent: 'codex' | 'claude'
+    ): { sessionId: string } | null {
+        return agent === 'codex'
+            ? this.findSessionByExternalCodexSessionId(namespace, externalSessionId)
+            : this.findSessionByExternalClaudeSessionId(namespace, externalSessionId)
+    }
+
+    private async importExternalSession(
+        externalSessionId: string,
+        namespace: string,
+        agent: 'codex' | 'claude'
+    ): Promise<ImportExternalAgentSessionResult> {
+        const existing = this.findSessionByExternalSessionId(namespace, externalSessionId, agent)
+        if (existing) {
+            return { type: 'success', sessionId: existing.sessionId }
+        }
+
+        const sourceResult = await this.findImportableSessionSource(namespace, externalSessionId, agent)
+        if (sourceResult.type === 'error') {
+            return {
+                type: 'error',
+                message: sourceResult.message,
+                code: sourceResult.code === 'no_machine_online' || sourceResult.code === 'session_not_found'
+                    ? sourceResult.code
+                    : 'import_failed'
+            }
+        }
+
+        const cwd = sourceResult.session.cwd
+        if (typeof cwd !== 'string' || cwd.length === 0) {
+            return {
+                type: 'error',
+                message: `Importable ${this.getImportableAgentLabel(agent)} session is missing cwd`,
+                code: 'import_failed'
+            }
+        }
+
+        const spawnResult = await this.rpcGateway.spawnSession(
+            sourceResult.machineId,
+            cwd,
+            agent,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            externalSessionId,
+            undefined
+        )
+
+        if (spawnResult.type !== 'success') {
+            return {
+                type: 'error',
+                message: spawnResult.message,
+                code: 'import_failed'
+            }
+        }
+
+        if (!(await this.waitForSessionActive(spawnResult.sessionId))) {
+            this.discardSpawnedSession(spawnResult.sessionId, namespace)
+            return {
+                type: 'error',
+                message: 'Session failed to become active',
+                code: 'import_failed'
+            }
+        }
+
+        const importedTitle = this.getBestImportableSessionTitle(sourceResult.session)
+        await this.applyImportableSessionTitle(spawnResult.sessionId, importedTitle)
+
+        return { type: 'success', sessionId: spawnResult.sessionId }
+    }
+
+    private async refreshExternalSession(
+        externalSessionId: string,
+        namespace: string,
+        agent: 'codex' | 'claude'
+    ): Promise<RefreshExternalAgentSessionResult> {
+        const existing = this.findSessionByExternalSessionId(namespace, externalSessionId, agent)
+        if (!existing) {
+            return {
+                type: 'error',
+                message: 'Imported session not found',
+                code: 'session_not_found'
+            }
+        }
+
+        const access = this.sessionCache.resolveSessionAccess(existing.sessionId, namespace)
+        if (!access.ok) {
+            return {
+                type: 'error',
+                message: access.reason === 'access-denied' ? 'Session access denied' : 'Imported session not found',
+                code: access.reason === 'access-denied' ? 'session_not_found' : 'session_not_found'
+            }
+        }
+
+        const session = access.session
+        const metadata = session.metadata
+        if (!metadata || typeof metadata.path !== 'string') {
+            return {
+                type: 'error',
+                message: 'Session metadata missing path',
+                code: 'resume_unavailable'
+            }
+        }
+
+        const targetMachine = this.selectOnlineMachine(namespace, metadata)
+        if (!targetMachine) {
+            return {
+                type: 'error',
+                message: 'No machine online',
+                code: 'no_machine_online'
+            }
+        }
+
+        const spawnResult = await this.rpcGateway.spawnSession(
+            targetMachine.id,
+            metadata.path,
+            agent,
+            session.model ?? undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            externalSessionId,
+            session.effort ?? undefined
+        )
+
+        if (spawnResult.type !== 'success') {
+            return {
+                type: 'error',
+                message: spawnResult.message,
+                code: 'refresh_failed'
+            }
+        }
+
+        if (!(await this.waitForSessionActive(spawnResult.sessionId))) {
+            this.discardSpawnedSession(spawnResult.sessionId, namespace)
+            return {
+                type: 'error',
+                message: 'Session failed to become active',
+                code: 'refresh_failed'
+            }
+        }
+
+        const importedTitle = await this.resolveImportableSessionTitle(namespace, externalSessionId, agent)
+        await this.applyImportableSessionTitle(spawnResult.sessionId, importedTitle)
+
+        if (spawnResult.sessionId !== access.sessionId) {
+            try {
+                await this.sessionCache.mergeSessions(spawnResult.sessionId, access.sessionId, namespace)
+            } catch (error) {
+                this.discardSpawnedSession(spawnResult.sessionId, namespace)
+                return {
+                    type: 'error',
+                    message: error instanceof Error ? error.message : 'Failed to refresh imported session',
+                    code: 'refresh_failed'
+                }
+            }
+        }
+
+        return { type: 'success', sessionId: access.sessionId }
+    }
+
+    private async listImportableSessionsByAgent(
+        namespace: string,
+        agent: 'codex' | 'claude'
+    ): Promise<ListImportableAgentSessionsResult> {
+        const onlineMachines = this.machineCache.getOnlineMachinesByNamespace(namespace)
+        const targetMachine = onlineMachines[0]
+        if (!targetMachine) {
+            return {
+                type: 'error',
+                message: 'No machine online',
+                code: 'no_machine_online'
+            }
+        }
+
+        try {
+            const response = await this.rpcGateway.listImportableSessions(targetMachine.id, { agent })
+            return {
+                type: 'success',
+                machineId: targetMachine.id,
+                sessions: response.sessions
+            }
+        } catch (error) {
+            return {
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Failed to list importable sessions',
+                code: 'importable_sessions_failed'
+            }
+        }
     }
 
     private selectOnlineMachine(namespace: string, metadata?: Session['metadata']): Machine | null {
@@ -647,9 +707,10 @@ export class SyncEngine {
         return metadata ? null : onlineMachines[0] ?? null
     }
 
-    private async findImportableCodexSessionSource(
+    private async findImportableSessionSource(
         namespace: string,
-        externalSessionId: string
+        externalSessionId: string,
+        agent: 'codex' | 'claude'
     ): Promise<
         | { type: 'success'; machineId: string; session: RpcListImportableSessionsResponse['sessions'][number] }
         | { type: 'error'; message: string; code: 'session_not_found' | 'no_machine_online' | 'importable_sessions_failed' }
@@ -666,13 +727,13 @@ export class SyncEngine {
         let lastError: string | null = null
         for (const machine of onlineMachines) {
             try {
-                const response = await this.rpcGateway.listImportableSessions(machine.id, { agent: 'codex' })
+                const response = await this.rpcGateway.listImportableSessions(machine.id, { agent })
                 const session = response.sessions.find((item) => item.externalSessionId === externalSessionId)
                 if (session) {
                     if (typeof session.cwd !== 'string' || session.cwd.length === 0) {
                         return {
                             type: 'error',
-                            message: 'Importable Codex session is missing cwd',
+                            message: `Importable ${this.getImportableAgentLabel(agent)} session is missing cwd`,
                             code: 'importable_sessions_failed'
                         }
                     }
@@ -689,23 +750,24 @@ export class SyncEngine {
 
         return {
             type: 'error',
-            message: lastError ?? 'Importable Codex session not found',
+            message: lastError ?? `Importable ${this.getImportableAgentLabel(agent)} session not found`,
             code: lastError ? 'importable_sessions_failed' : 'session_not_found'
         }
     }
 
-    private async resolveImportableCodexSessionTitle(
+    private async resolveImportableSessionTitle(
         namespace: string,
-        externalSessionId: string
+        externalSessionId: string,
+        agent: 'codex' | 'claude'
     ): Promise<string | null> {
-        const sourceResult = await this.findImportableCodexSessionSource(namespace, externalSessionId)
+        const sourceResult = await this.findImportableSessionSource(namespace, externalSessionId, agent)
         if (sourceResult.type !== 'success') {
             return null
         }
-        return this.getBestImportableCodexSessionTitle(sourceResult.session)
+        return this.getBestImportableSessionTitle(sourceResult.session)
     }
 
-    private getBestImportableCodexSessionTitle(
+    private getBestImportableSessionTitle(
         session: RpcListImportableSessionsResponse['sessions'][number]
     ): string | null {
         const previewTitle = typeof session.previewTitle === 'string' ? session.previewTitle.trim() : ''
@@ -721,7 +783,7 @@ export class SyncEngine {
         return null
     }
 
-    private async applyImportableCodexSessionTitle(sessionId: string, title: string | null): Promise<void> {
+    private async applyImportableSessionTitle(sessionId: string, title: string | null): Promise<void> {
         if (!title) {
             return
         }

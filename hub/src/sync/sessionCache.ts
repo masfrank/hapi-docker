@@ -37,13 +37,25 @@ export class SessionCache {
     }
 
     findSessionByExternalCodexSessionId(namespace: string, externalSessionId: string): { sessionId: string } | null {
+        return this.findSessionByMetadataSessionId(namespace, 'codexSessionId', externalSessionId)
+    }
+
+    findSessionByExternalClaudeSessionId(namespace: string, externalSessionId: string): { sessionId: string } | null {
+        return this.findSessionByMetadataSessionId(namespace, 'claudeSessionId', externalSessionId)
+    }
+
+    private findSessionByMetadataSessionId(
+        namespace: string,
+        key: 'codexSessionId' | 'claudeSessionId',
+        externalSessionId: string
+    ): { sessionId: string } | null {
         for (const stored of this.store.sessions.getSessionsByNamespace(namespace)) {
             const metadata = MetadataSchema.safeParse(stored.metadata)
             if (!metadata.success) {
                 continue
             }
 
-            if (metadata.data.codexSessionId === externalSessionId) {
+            if (metadata.data[key] === externalSessionId) {
                 return { sessionId: stored.id }
             }
         }
