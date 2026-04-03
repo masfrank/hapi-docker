@@ -11,6 +11,8 @@ import { SDKToLogConverter } from "./utils/sdkToLogConverter";
 import { PLAN_FAKE_REJECT } from "./sdk/prompts";
 import { EnhancedMode } from "./loop";
 import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
+import { createSessionScanner } from "./utils/sessionScanner";
+import { isClaudeChatVisibleMessage } from "./utils/chatVisibility";
 import type { ClaudePermissionMode } from "@hapi/protocol/types";
 import {
     RemoteLauncherBase,
@@ -31,6 +33,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
     private abortFuture: Future<void> | null = null;
     private permissionHandler: PermissionHandler | null = null;
     private handleSessionFound: ((sessionId: string) => void) | null = null;
+    private didReplayExplicitResumeTranscript = false;
 
     constructor(session: Session) {
         super(process.env.DEBUG ? session.logPath : undefined);
@@ -107,6 +110,36 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
             cwd: session.path,
             version: process.env.npm_package_version
         }, permissionHandler.getResponses());
+
+        const replayExplicitResumeTranscript = async (): Promise<void> => {
+            if (this.didReplayExplicitResumeTranscript || session.startingMode !== 'remote') {
+                return;
+            }
+
+            const resumeSessionId = session.sessionId;
+            if (!resumeSessionId) {
+                return;
+            }
+
+            this.didReplayExplicitResumeTranscript = true;
+
+            const scanner = await createSessionScanner({
+                sessionId: resumeSessionId,
+                workingDirectory: session.path,
+                replayExistingMessages: true,
+                onMessage: (message) => {
+                    if (message.type === 'summary' || message.isMeta || message.isCompactSummary) {
+                        return;
+                    }
+                    if (!isClaudeChatVisibleMessage(message)) {
+                        return;
+                    }
+                    session.client.sendClaudeSessionMessage(message);
+                }
+            });
+
+            await scanner.cleanup();
+        };
 
         const handleSessionFound = (sessionId: string) => {
             sdkToLogConverter.updateSessionId(sessionId);
@@ -276,6 +309,8 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
             while (!this.exitReason) {
                 logger.debug('[remote]: launch');
                 messageBuffer.addMessage('═'.repeat(40), 'status');
+
+                await replayExplicitResumeTranscript();
 
                 const isNewSession = session.sessionId !== previousSessionId;
                 if (isNewSession) {
