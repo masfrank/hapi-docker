@@ -146,4 +146,41 @@ describe('RpcGateway', () => {
 
         await expect(gateway.listImportableSessions('machine-1', { agent: 'codex' })).rejects.toThrow()
     })
+
+    it('rejects list-importable-sessions responses whose session agent does not match the request agent', async () => {
+        const registry = new RpcRegistry()
+
+        const socket = {
+            id: 'socket-1',
+            timeout: () => ({
+                emitWithAck: async () => ({
+                    sessions: [
+                        {
+                            agent: 'claude',
+                            externalSessionId: 'claude-session-1',
+                            cwd: '/tmp/project',
+                            timestamp: 123,
+                            transcriptPath: '/tmp/project/session-1.jsonl',
+                            previewTitle: 'Imported title',
+                            previewPrompt: 'Imported prompt'
+                        }
+                    ]
+                })
+            })
+        }
+
+        registry.register(socket as never, 'machine-1:list-importable-sessions')
+
+        const io = {
+            of: () => ({
+                sockets: new Map([['socket-1', socket]])
+            })
+        }
+
+        const gateway = new RpcGateway(io as never, registry)
+
+        await expect(gateway.listImportableSessions('machine-1', { agent: 'codex' })).rejects.toThrow(
+            'Unexpected importable session agent "claude" for request "codex"'
+        )
+    })
 })

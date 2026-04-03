@@ -7,7 +7,7 @@ import type { Server } from 'socket.io'
 import { z } from 'zod'
 import type { RpcRegistry } from '../socket/rpcRegistry'
 
-const importableCodexSessionSummarySchema = z.object({
+const importableSessionSummarySchema = z.object({
     agent: z.union([z.literal('codex'), z.literal('claude')]),
     externalSessionId: z.string(),
     cwd: z.string().nullable(),
@@ -18,7 +18,7 @@ const importableCodexSessionSummarySchema = z.object({
 })
 
 const listImportableSessionsResponseSchema = z.object({
-    sessions: z.array(importableCodexSessionSummarySchema)
+    sessions: z.array(importableSessionSummarySchema)
 })
 
 export type RpcCommandResponse = {
@@ -254,7 +254,13 @@ export class RpcGateway {
         request: RpcListImportableSessionsRequest
     ): Promise<RpcListImportableSessionsResponse> {
         const response = await this.machineRpc(machineId, 'list-importable-sessions', request)
-        return listImportableSessionsResponseSchema.parse(response)
+        const parsed = listImportableSessionsResponseSchema.parse(response)
+        for (const session of parsed.sessions) {
+            if (session.agent !== request.agent) {
+                throw new Error(`Unexpected importable session agent "${session.agent}" for request "${request.agent}"`)
+            }
+        }
+        return parsed
     }
 
     private async sessionRpc(sessionId: string, method: string, params: unknown): Promise<unknown> {
