@@ -231,6 +231,10 @@ describe('codexRemoteLauncher', () => {
                         properties: {
                             token: { type: 'string' }
                         }
+                    },
+                    _meta: {
+                        tool_title: 'Demo Tool',
+                        tool_description: 'Collect a token'
                     }
                 }
             }));
@@ -244,7 +248,11 @@ describe('codexRemoteLauncher', () => {
                 turnId: 'turn-1',
                 serverName: 'demo-server',
                 mode: 'form',
-                message: 'Need MCP input'
+                message: 'Need MCP input',
+                _meta: {
+                    tool_title: 'Demo Tool',
+                    tool_description: 'Collect a token'
+                }
             });
 
             const rpcHandler = rpcHandlers.get('mcp-elicitation-response');

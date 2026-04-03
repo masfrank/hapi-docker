@@ -6,8 +6,10 @@ import { CodexMcpElicitationFooter } from '@/components/ToolCard/CodexMcpElicita
 import {
     buildCodexMcpElicitationFormContent,
     createCodexMcpElicitationFormState,
-    normalizeCodexMcpElicitationFormSchema
+    normalizeCodexMcpElicitationFormSchema,
+    parseCodexMcpElicitationInput
 } from '@/components/ToolCard/codexMcpElicitation'
+import { I18nProvider } from '@/lib/i18n-context'
 
 const platformMocks = vi.hoisted(() => ({
     impact: vi.fn(),
@@ -34,6 +36,24 @@ function makeTool(input: unknown): ChatToolCall {
         completedAt: null,
         description: null
     }
+}
+
+function renderFooter(props: {
+    api: ApiClient
+    tool: ChatToolCall
+    onDone?: () => void
+}) {
+    return render(
+        <I18nProvider>
+            <CodexMcpElicitationFooter
+                api={props.api}
+                sessionId="session-1"
+                tool={props.tool}
+                disabled={false}
+                onDone={props.onDone ?? (() => {})}
+            />
+        </I18nProvider>
+    )
 }
 
 const formInput = {
@@ -123,6 +143,21 @@ describe('normalizeCodexMcpElicitationFormSchema', () => {
             reason: expect.stringContaining('Only object forms are supported')
         })
     })
+
+    it('extracts tool metadata from _meta payload', () => {
+        expect(parseCodexMcpElicitationInput({
+            ...formInput,
+            _meta: {
+                tool_title: 'Demo Tool',
+                tool_description: 'Collect a token'
+            }
+        })).toMatchObject({
+            meta: {
+                toolTitle: 'Demo Tool',
+                toolDescription: 'Collect a token'
+            }
+        })
+    })
 })
 
 describe('buildCodexMcpElicitationFormContent', () => {
@@ -179,15 +214,11 @@ describe('CodexMcpElicitationFooter', () => {
             respondToMcpElicitation
         } as unknown as ApiClient
 
-        render(
-            <CodexMcpElicitationFooter
-                api={api}
-                sessionId="session-1"
-                tool={makeTool(formInput)}
-                disabled={false}
-                onDone={onDone}
-            />
-        )
+        renderFooter({
+            api,
+            tool: makeTool(formInput),
+            onDone
+        })
 
         fireEvent.change(screen.getByLabelText(/Access token/i), { target: { value: 'abc' } })
         fireEvent.change(screen.getByLabelText(/Count/i), { target: { value: '3' } })
@@ -218,34 +249,31 @@ describe('CodexMcpElicitationFooter', () => {
             respondToMcpElicitation: vi.fn().mockResolvedValue(undefined)
         } as unknown as ApiClient
 
-        const rendered = render(
-            <CodexMcpElicitationFooter
-                api={api}
-                sessionId="session-1"
-                tool={makeTool(formInput)}
-                disabled={false}
-                onDone={() => {}}
-            />
-        )
+        const rendered = renderFooter({
+            api,
+            tool: makeTool(formInput)
+        })
 
         fireEvent.change(screen.getByLabelText(/Access token/i), { target: { value: 'draft-token' } })
 
         rendered.rerender(
-            <CodexMcpElicitationFooter
-                api={api}
-                sessionId="session-1"
-                tool={makeTool({
-                    ...formInput,
-                    requestedSchema: {
-                        ...formInput.requestedSchema,
-                        properties: {
-                            ...formInput.requestedSchema.properties
+            <I18nProvider>
+                <CodexMcpElicitationFooter
+                    api={api}
+                    sessionId="session-1"
+                    tool={makeTool({
+                        ...formInput,
+                        requestedSchema: {
+                            ...formInput.requestedSchema,
+                            properties: {
+                                ...formInput.requestedSchema.properties
+                            }
                         }
-                    }
-                })}
-                disabled={false}
-                onDone={() => {}}
-            />
+                    })}
+                    disabled={false}
+                    onDone={() => {}}
+                />
+            </I18nProvider>
         )
 
         expect(screen.getByLabelText(/Access token/i)).toHaveValue('draft-token')
@@ -259,15 +287,11 @@ describe('CodexMcpElicitationFooter', () => {
         } as unknown as ApiClient
         const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
 
-        render(
-            <CodexMcpElicitationFooter
-                api={api}
-                sessionId="session-1"
-                tool={makeTool(urlInput)}
-                disabled={false}
-                onDone={onDone}
-            />
-        )
+        renderFooter({
+            api,
+            tool: makeTool(urlInput),
+            onDone
+        })
 
         fireEvent.click(screen.getByRole('button', { name: 'Open and continue' }))
 

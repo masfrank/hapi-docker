@@ -262,6 +262,7 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
             const requestedSchema = asRecord(requestRecord.requestedSchema);
             const url = asString(requestRecord.url);
             const elicitationId = asString(requestRecord.elicitationId);
+            const meta = asRecord(requestRecord._meta);
 
             if (mode !== 'form' && mode !== 'url') {
                 throw new Error('Invalid MCP elicitation request: missing mode');
@@ -286,7 +287,8 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                 message,
                 requestedSchema: mode === 'form' ? requestedSchema : undefined,
                 url: mode === 'url' ? url : undefined,
-                elicitationId: mode === 'url' ? elicitationId : undefined
+                elicitationId: mode === 'url' ? elicitationId : undefined,
+                _meta: meta ?? undefined
             };
         };
 

@@ -149,6 +149,7 @@ export interface McpElicitationFormRequest {
     mode: 'form';
     message: string;
     requestedSchema: Record<string, unknown>;
+    _meta?: Record<string, unknown>;
 }
 
 export interface McpElicitationUrlRequest {
@@ -156,6 +157,7 @@ export interface McpElicitationUrlRequest {
     message: string;
     url: string;
     elicitationId: string;
+    _meta?: Record<string, unknown>;
 }
 
 export interface McpServerElicitationRequestParams {
