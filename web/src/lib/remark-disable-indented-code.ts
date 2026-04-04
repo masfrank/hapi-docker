@@ -6,10 +6,9 @@
  * content or quoted text are indented.  Fenced code blocks (``` … ```)
  * still work normally.
  */
-export default function remarkDisableIndentedCode() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const self = this as any
-    const data = self.data()
-    const extensions = data.micromarkExtensions ?? (data.micromarkExtensions = [])
-    extensions.push({ disable: { null: ['codeIndented'] } })
+export default function remarkDisableIndentedCode(this: unknown) {
+    const processor = this as { data(key: string, value?: unknown): unknown }
+    const micromarkExtensions = (processor.data('micromarkExtensions') ?? []) as unknown[]
+    micromarkExtensions.push({ disable: { null: ['codeIndented'] } })
+    processor.data('micromarkExtensions', micromarkExtensions)
 }
