@@ -123,6 +123,69 @@ function makeTaskBlock(): ToolCallBlock {
     }
 }
 
+function makeTaskHybridBlock(): ToolCallBlock {
+    const delegatedPrompt = 'Investigate flaky Task sidechain rendering'
+
+    return {
+        kind: 'tool-call',
+        id: 'task-block-2',
+        localId: null,
+        createdAt: 1,
+        tool: {
+            id: 'task-2',
+            name: 'Task',
+            state: 'completed',
+            input: {
+                prompt: delegatedPrompt
+            },
+            createdAt: 1,
+            startedAt: 1,
+            completedAt: 2,
+            description: null
+        },
+        meta: {
+            subagent: {
+                kind: 'spawn',
+                sidechainKey: 'task-2',
+                prompt: delegatedPrompt
+            }
+        },
+        children: [
+            {
+                kind: 'tool-call',
+                id: 'task-pending-child',
+                localId: null,
+                createdAt: 2,
+                tool: {
+                    id: 'pending-1',
+                    name: 'Bash',
+                    state: 'pending',
+                    input: {
+                        command: ['echo', 'pending child']
+                    },
+                    createdAt: 2,
+                    startedAt: null,
+                    completedAt: null,
+                    description: null,
+                    permission: {
+                        id: 'pending-approval-1',
+                        status: 'pending'
+                    }
+                },
+                children: []
+            },
+            {
+                kind: 'agent-text',
+                id: 'task-child-agent-1',
+                localId: null,
+                createdAt: 3,
+                text: 'Task child answer',
+                meta: undefined
+            }
+        ]
+    }
+}
+
 function renderWithProviders(ui: ReactElement) {
     if (typeof window !== 'undefined' && !window.matchMedia) {
         window.matchMedia = () => ({
@@ -208,8 +271,8 @@ describe('CodexSubagentPreviewCard', () => {
         expect(screen.getByRole('link', { name: 'repo' })).toBeInTheDocument()
     })
 
-    it('renders HappyToolMessage as the lifecycle card for Claude Task sidechains', () => {
-        const block = makeTaskBlock()
+    it('renders HappyToolMessage as the lifecycle card for Claude Task sidechains while keeping pending children inline', () => {
+        const block = makeTaskHybridBlock()
         const props: any = {
             artifact: block,
             toolName: 'Task',
@@ -225,7 +288,8 @@ describe('CodexSubagentPreviewCard', () => {
 
         expect(screen.getByText('Subagent conversation')).toBeInTheDocument()
         expect(screen.getByText('Completed')).toBeInTheDocument()
-        expect(screen.getByText('Investigate flaky Task sidechain rendering')).toBeInTheDocument()
+        expect(screen.getAllByText('Investigate flaky Task sidechain rendering').length).toBeGreaterThan(0)
+        expect(screen.getByText('Waiting for approval…')).toBeInTheDocument()
         expect(screen.queryByText('Task child answer')).not.toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: /Subagent conversation/i }))
@@ -255,5 +319,54 @@ describe('CodexSubagentPreviewCard', () => {
     it('marks Task children for preview rendering instead of inline expansion', () => {
         const block = makeTaskBlock()
         expect(getToolChildRenderMode(block)).toBe('codex-subagent-preview')
+    })
+
+    it('keeps ordinary tool children inline instead of using the subagent preview card', () => {
+        const block: ToolCallBlock = {
+            kind: 'tool-call',
+            id: 'bash-block-1',
+            localId: null,
+            createdAt: 1,
+            tool: {
+                id: 'bash-1',
+                name: 'Bash',
+                state: 'completed',
+                input: {
+                    command: ['echo', 'ordinary child']
+                },
+                createdAt: 1,
+                startedAt: 1,
+                completedAt: 2,
+                description: null
+            },
+            children: [
+                {
+                    kind: 'agent-text',
+                    id: 'bash-child-1',
+                    localId: null,
+                    createdAt: 2,
+                    text: 'ordinary child transcript',
+                    meta: undefined
+                }
+            ]
+        }
+
+        expect(getToolChildRenderMode(block)).toBe('inline')
+
+        const props: any = {
+            artifact: block,
+            toolName: 'Bash',
+            argsText: '{}',
+            result: undefined,
+            isError: false,
+            status: { type: 'complete' }
+        }
+
+        renderWithProviders(
+            <HappyToolMessage {...props} />
+        )
+
+        expect(screen.queryByText('Subagent conversation')).not.toBeInTheDocument()
+        expect(screen.getByText('ordinary child transcript')).toBeInTheDocument()
     })
 })

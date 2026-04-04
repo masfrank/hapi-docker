@@ -8,6 +8,7 @@ import { CodeBlock } from '@/components/CodeBlock'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { LazyRainbowText } from '@/components/LazyRainbowText'
 import { MessageStatusIndicator } from '@/components/AssistantChat/messages/MessageStatusIndicator'
+import { CodexSubagentPreviewCard } from '@/components/AssistantChat/messages/CodexSubagentPreviewCard'
 import { SubagentPreviewCard } from '@/components/AssistantChat/messages/SubagentPreviewCard'
 import { ToolCard } from '@/components/ToolCard/ToolCard'
 import { useHappyChatContext } from '@/components/AssistantChat/context'
@@ -134,8 +135,33 @@ function renderToolBlock(
     block: ToolCallBlock,
     ctx: ReturnType<typeof useHappyChatContext>
 ): ReactNode {
-    if (block.tool.name === 'Task' || block.tool.name === 'CodexSpawnAgent') {
-        return <SubagentPreviewCard block={block} />
+    if (block.tool.name === 'CodexSpawnAgent') {
+        return <CodexSubagentPreviewCard block={block} />
+    }
+
+    if (block.tool.name === 'Task') {
+        const taskChildren = splitTaskChildren(block)
+
+        return (
+            <>
+                <ToolCard
+                    api={ctx.api}
+                    sessionId={ctx.sessionId}
+                    metadata={ctx.metadata}
+                    disabled={ctx.disabled}
+                    onDone={ctx.onRefresh}
+                    block={block}
+                />
+                {taskChildren.pending.length > 0 ? (
+                    <div className="mt-2 pl-3">
+                        <HappyNestedBlockList blocks={taskChildren.pending} />
+                    </div>
+                ) : null}
+                <div className="mt-2">
+                    <SubagentPreviewCard block={block} />
+                </div>
+            </>
+        )
     }
 
     return (
@@ -158,32 +184,17 @@ function renderToolChildren(block: ToolCallBlock): ReactNode | null {
     if (mode === 'none') return null
 
     if (mode === 'task') {
-        const taskChildren = splitTaskChildren(block)
         return (
-            <>
-                {taskChildren.pending.length > 0 ? (
-                    <div className="mt-2 pl-3">
-                        <HappyNestedBlockList blocks={taskChildren.pending} />
-                    </div>
-                ) : null}
-                {taskChildren.rest.length > 0 ? (
-                    <details className="mt-2">
-                        <summary className="cursor-pointer text-xs text-[var(--app-hint)]">
-                            Task details ({taskChildren.rest.length})
-                        </summary>
-                        <div className="mt-2 pl-3">
-                            <HappyNestedBlockList blocks={taskChildren.rest} />
-                        </div>
-                    </details>
-                ) : null}
-            </>
+            <div className="mt-2">
+                <SubagentPreviewCard block={block} />
+            </div>
         )
     }
 
     if (mode === 'codex-subagent-preview') {
         return (
             <div className="mt-2">
-                <SubagentPreviewCard block={block} />
+                <CodexSubagentPreviewCard block={block} />
             </div>
         )
     }
