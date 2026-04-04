@@ -12,6 +12,9 @@ export function reduceTimeline(
         consumedGroupIds: Set<string>
         titleChangesByToolUseId: Map<string, string>
         emittedTitleChangeToolUseIds: Set<string>
+    },
+    options?: {
+        renderSidechainPromptAsUserText?: boolean
     }
 ): { blocks: ChatBlock[]; toolBlocksById: Map<string, ToolCallBlock>; hasReadyEvent: boolean } {
     const blocks: ChatBlock[] = []
@@ -240,7 +243,16 @@ export function reduceTimeline(
                 }
 
                 if (c.type === 'sidechain') {
-                    // Skip - the prompt is already visible in the parent Task tool call's input
+                    if (options?.renderSidechainPromptAsUserText) {
+                        blocks.push({
+                            kind: 'user-text',
+                            id: `${msg.id}:${idx}`,
+                            localId: msg.localId,
+                            createdAt: msg.createdAt,
+                            text: c.prompt,
+                            meta: msg.meta
+                        })
+                    }
                     continue
                 }
             }

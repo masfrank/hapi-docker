@@ -369,4 +369,63 @@ describe('reduceChatBlocks', () => {
             ])
         )
     })
+
+    it('renders a root-only explicit sidechain prompt when no parent card exists in the current slice', () => {
+        const messages: NormalizedMessage[] = [
+            {
+                id: 'msg-root-prompt',
+                localId: null,
+                createdAt: 1,
+                role: 'agent',
+                isSidechain: true,
+                sidechainKey: 'task-missing',
+                meta: {
+                    subagent: {
+                        kind: 'spawn',
+                        sidechainKey: 'task-missing',
+                        prompt: 'Investigate flaky test'
+                    }
+                },
+                content: [{
+                    type: 'sidechain',
+                    uuid: 'msg-root-prompt-uuid',
+                    prompt: 'Investigate flaky test'
+                }]
+            }
+        ]
+
+        const reduced = reduceChatBlocks(messages, null)
+
+        expect(reduced.blocks).toEqual([
+            expect.objectContaining({
+                kind: 'user-text',
+                text: 'Investigate flaky test'
+            })
+        ])
+    })
+
+    it('keeps preserved sidechain blocks in chronological order with root blocks', () => {
+        const messages: NormalizedMessage[] = [
+            {
+                id: 'msg-root-prompt',
+                localId: null,
+                createdAt: 1,
+                role: 'agent',
+                isSidechain: true,
+                sidechainKey: 'task-missing',
+                content: [{
+                    type: 'sidechain',
+                    uuid: 'msg-root-prompt-uuid',
+                    prompt: 'Investigate flaky test'
+                }]
+            },
+            agentText('root-update', 'Parent progress update', 2)
+        ]
+
+        const reduced = reduceChatBlocks(messages, null)
+
+        expect(reduced.blocks.map((block) => block.kind)).toEqual(['user-text', 'agent-text'])
+        expect(reduced.blocks[0]).toMatchObject({ kind: 'user-text', text: 'Investigate flaky test' })
+        expect(reduced.blocks[1]).toMatchObject({ kind: 'agent-text', text: 'Parent progress update' })
+    })
 })

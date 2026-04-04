@@ -58,13 +58,23 @@ function appendUnconsumedSidechainGroups(
     consumedGroupIds: Set<string>,
     reduceGroup: (groupId: string) => ChatBlock[]
 ): void {
+    const preservedBlocks: ChatBlock[] = []
     for (const [groupId, sidechain] of groups) {
         if (consumedGroupIds.has(groupId) || sidechain.length === 0) {
             continue
         }
 
-        blocks.push(...reduceGroup(groupId))
+        preservedBlocks.push(...reduceGroup(groupId))
     }
+
+    if (preservedBlocks.length === 0) return
+
+    const merged = [...blocks, ...preservedBlocks].sort((a, b) => {
+        if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt
+        return 0
+    })
+
+    blocks.splice(0, blocks.length, ...merged)
 }
 
 function extractSpawnAgentId(block: ToolCallBlock): string | null {
@@ -144,7 +154,7 @@ export function reduceChatBlocks(
 
     const reduceGroup = (groupId: string): ChatBlock[] => {
         const sidechain = groups.get(groupId) ?? []
-        const child = reduceTimeline(sidechain, reducerContext)
+        const child = reduceTimeline(sidechain, reducerContext, { renderSidechainPromptAsUserText: true })
         hasReadyEvent = hasReadyEvent || child.hasReadyEvent
         return child.blocks
     }
