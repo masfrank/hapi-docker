@@ -12,7 +12,9 @@ import {
     useRef,
     useState
 } from 'react'
+import type { ApiClient } from '@/api/client'
 import type { AgentState, CodexCollaborationMode, PermissionMode } from '@/types/api'
+import type { AttachmentMetadata } from '@/types/api'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import type { ConversationStatus } from '@/realtime/types'
 import { useActiveWord } from '@/hooks/useActiveWord'
@@ -26,8 +28,10 @@ import { FloatingOverlay } from '@/components/ChatInput/FloatingOverlay'
 import { Autocomplete } from '@/components/ChatInput/Autocomplete'
 import { StatusBar } from '@/components/AssistantChat/StatusBar'
 import { ComposerButtons } from '@/components/AssistantChat/ComposerButtons'
-import { AttachmentItem } from '@/components/AssistantChat/AttachmentItem'
+import { AttachmentPickerButton } from '@/components/AssistantChat/AttachmentPickerButton'
 import { useTranslation } from '@/lib/use-translation'
+import { deleteUploadedAttachment, uploadAttachmentFile } from '@/lib/attachmentAdapter'
+import { makeClientSideId } from '@/lib/messages'
 import { getModelOptionsForFlavor, getNextModelForFlavor } from './modelOptions'
 import { getClaudeComposerEffortOptions } from './claudeEffortOptions'
 
@@ -36,9 +40,67 @@ export interface TextInputState {
     selection: { start: number; end: number }
 }
 
+type LocalComposerAttachment = AttachmentMetadata & {
+    status: 'uploading' | 'ready' | 'error'
+    uploadSessionId?: string
+    error?: string
+}
+
+function formatAttachmentUploadError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('413')) {
+        return 'Upload rejected with HTTP 413. The request body was considered too large.'
+    }
+    if (message.includes('File too large')) {
+        return message
+    }
+    return message || 'Upload failed'
+}
+
+function LocalAttachmentChip(props: {
+    attachment: LocalComposerAttachment
+    onRemove: () => void
+}) {
+    const { attachment } = props
+    const isImage = attachment.mimeType.startsWith('image/') && attachment.previewUrl
+
+    return (
+        <div className="flex max-w-full items-center gap-2 rounded-lg bg-[var(--app-subtle-bg)] px-3 py-2 text-sm text-[var(--app-fg)]">
+            {isImage ? (
+                <img
+                    src={attachment.previewUrl}
+                    alt={attachment.filename}
+                    className="h-10 w-10 rounded object-cover"
+                />
+            ) : null}
+            <div className="min-w-0">
+                <div className="truncate">{attachment.filename}</div>
+                <div className="text-xs text-[var(--app-hint)]">
+                    {attachment.status === 'uploading'
+                        ? 'Uploading...'
+                        : attachment.status === 'error'
+                            ? (attachment.error || 'Upload failed')
+                            : 'Ready'}
+                </div>
+            </div>
+            <button
+                type="button"
+                onClick={props.onRemove}
+                className="ml-auto flex h-5 w-5 items-center justify-center rounded text-[var(--app-hint)] transition-colors hover:text-[var(--app-fg)]"
+                aria-label="Remove attachment"
+                title="Remove attachment"
+            >
+                ×
+            </button>
+        </div>
+    )
+}
+
 const defaultSuggestionHandler = async (): Promise<Suggestion[]> => []
 
 export function HappyComposer(props: {
+    apiClient: ApiClient
+    sessionId: string
     disabled?: boolean
     permissionMode?: PermissionMode
     collaborationMode?: CodexCollaborationMode
@@ -55,6 +117,9 @@ export function HappyComposer(props: {
     onPermissionModeChange?: (mode: PermissionMode) => void
     onModelChange?: (model: string | null) => void
     onEffortChange?: (effort: string | null) => void
+    onSendMessage?: (text: string, attachments?: AttachmentMetadata[]) => void
+    resolveSessionId?: (sessionId: string) => Promise<string>
+    onSessionResolved?: (sessionId: string) => void
     onSwitchToRemote?: () => void
     onTerminal?: () => void
     terminalUnsupported?: boolean
@@ -69,6 +134,8 @@ export function HappyComposer(props: {
     const { t } = useTranslation()
     const {
         disabled = false,
+        apiClient,
+        sessionId,
         permissionMode: rawPermissionMode,
         collaborationMode: rawCollaborationMode,
         model: rawModel,
@@ -84,6 +151,9 @@ export function HappyComposer(props: {
         onPermissionModeChange,
         onModelChange,
         onEffortChange,
+        onSendMessage,
+        resolveSessionId,
+        onSessionResolved,
         onSwitchToRemote,
         onTerminal,
         terminalUnsupported = false,
@@ -103,24 +173,15 @@ export function HappyComposer(props: {
 
     const api = useAssistantApi()
     const composerText = useAssistantState(({ composer }) => composer.text)
-    const attachments = useAssistantState(({ composer }) => composer.attachments)
     const threadIsRunning = useAssistantState(({ thread }) => thread.isRunning)
     const threadIsDisabled = useAssistantState(({ thread }) => thread.isDisabled)
 
     const controlsDisabled = disabled || (!active && !allowSendWhenInactive) || threadIsDisabled
     const trimmed = composerText.trim()
     const hasText = trimmed.length > 0
+    const [attachments, setAttachments] = useState<LocalComposerAttachment[]>([])
     const hasAttachments = attachments.length > 0
-    const attachmentsReady = !hasAttachments || attachments.every((attachment) => {
-        if (attachment.status.type === 'complete') {
-            return true
-        }
-        if (attachment.status.type !== 'requires-action') {
-            return false
-        }
-        const path = (attachment as { path?: string }).path
-        return typeof path === 'string' && path.length > 0
-    })
+    const attachmentsReady = attachments.every((attachment) => attachment.status === 'ready' && attachment.path.length > 0)
     const canSend = (hasText || hasAttachments) && attachmentsReady && !controlsDisabled && !threadIsRunning
 
     const [inputState, setInputState] = useState<TextInputState>({
@@ -278,6 +339,22 @@ export function HappyComposer(props: {
         [permissionModeOptions]
     )
 
+    const performSend = useCallback(() => {
+        if (!attachmentsReady || !canSend || !onSendMessage) {
+            return
+        }
+
+        const readyAttachments = attachments
+            .filter((attachment): attachment is LocalComposerAttachment & { status: 'ready' } => attachment.status === 'ready')
+            .map(({ status: _status, uploadSessionId: _uploadSessionId, error: _error, ...metadata }) => metadata)
+
+        onSendMessage(composerText, readyAttachments.length > 0 ? readyAttachments : undefined)
+        api.composer().setText('')
+        setInputState({ text: '', selection: { start: 0, end: 0 } })
+        setAttachments([])
+        setShowContinueHint(false)
+    }, [api, attachments, attachmentsReady, canSend, composerText, onSendMessage])
+
     const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
         const key = e.key
 
@@ -290,8 +367,7 @@ export function HappyComposer(props: {
         if (key === 'Enter' && e.shiftKey) {
             e.preventDefault()
             if (!canSend) return
-            api.composer().send()
-            setShowContinueHint(false)
+            performSend()
             return
         }
 
@@ -346,7 +422,7 @@ export function HappyComposer(props: {
         permissionMode,
         permissionModes,
         canSend,
-        api,
+        performSend,
         haptic
     ])
 
@@ -379,6 +455,53 @@ export function HappyComposer(props: {
         }))
     }, [])
 
+    const handleAttachmentFilesSelected = useCallback(async (files: File[]) => {
+        for (const file of files) {
+            const pendingId = makeClientSideId('attachment')
+            setAttachments((prev) => [
+                ...prev,
+                {
+                    id: pendingId,
+                    filename: file.name,
+                    mimeType: file.type || 'application/octet-stream',
+                    size: file.size,
+                    path: '',
+                    previewUrl: undefined,
+                    status: 'uploading'
+                }
+            ])
+
+            try {
+                const result = await uploadAttachmentFile({
+                    api: apiClient,
+                    sessionId,
+                    file,
+                    options: {
+                        resolveSessionId,
+                        onSessionResolved
+                    }
+                })
+                setAttachments((prev) => prev.map((attachment) => (
+                    attachment.id === pendingId
+                        ? {
+                            ...result.metadata,
+                            id: pendingId,
+                            status: 'ready',
+                            uploadSessionId: result.sessionId
+                        }
+                        : attachment
+                )))
+            } catch (error) {
+                const message = formatAttachmentUploadError(error)
+                setAttachments((prev) => prev.map((attachment) => (
+                    attachment.id === pendingId
+                        ? { ...attachment, status: 'error', error: message }
+                        : attachment
+                )))
+            }
+        }
+    }, [apiClient, onSessionResolved, resolveSessionId, sessionId])
+
     const handlePaste = useCallback(async (e: ReactClipboardEvent<HTMLTextAreaElement>) => {
         const files = Array.from(e.clipboardData?.files || [])
         const imageFiles = files.filter(file => file.type.startsWith('image/'))
@@ -386,15 +509,25 @@ export function HappyComposer(props: {
         if (imageFiles.length === 0) return
 
         e.preventDefault()
+        await handleAttachmentFilesSelected(imageFiles)
+    }, [handleAttachmentFilesSelected])
 
-        try {
-            for (const file of imageFiles) {
-                await api.composer().addAttachment(file)
-            }
-        } catch (error) {
-            console.error('Error adding pasted image:', error)
+    const handleRemoveAttachment = useCallback(async (attachmentId: string) => {
+        const attachment = attachments.find((item) => item.id === attachmentId)
+        setAttachments((prev) => prev.filter((item) => item.id !== attachmentId))
+        if (!attachment?.path || !attachment.uploadSessionId) {
+            return
         }
-    }, [api])
+        try {
+            await deleteUploadedAttachment({
+                api: apiClient,
+                sessionId: attachment.uploadSessionId,
+                path: attachment.path
+            })
+        } catch (error) {
+            console.error('Error deleting attachment:', error)
+        }
+    }, [apiClient, attachments])
 
     const handleSettingsToggle = useCallback(() => {
         haptic('light')
@@ -402,12 +535,9 @@ export function HappyComposer(props: {
     }, [haptic])
 
     const handleSubmit = useCallback((event?: ReactFormEvent<HTMLFormElement>) => {
-        if (event && !attachmentsReady) {
-            event.preventDefault()
-            return
-        }
-        setShowContinueHint(false)
-    }, [attachmentsReady])
+        event?.preventDefault()
+        performSend()
+    }, [performSend])
 
     const handlePermissionChange = useCallback((mode: PermissionMode) => {
         if (!onPermissionModeChange || controlsDisabled) return
@@ -446,8 +576,8 @@ export function HappyComposer(props: {
     const voiceEnabled = Boolean(onVoiceToggle)
 
     const handleSend = useCallback(() => {
-        api.composer().send()
-    }, [api])
+        performSend()
+    }, [performSend])
 
     const overlays = useMemo(() => {
         if (showSettings && (showCollaborationSettings || showPermissionSettings || showModelSettings || showEffortSettings)) {
@@ -679,7 +809,15 @@ export function HappyComposer(props: {
                     <div className="overflow-hidden rounded-[20px] bg-[var(--app-secondary-bg)]">
                         {attachments.length > 0 ? (
                             <div className="flex flex-wrap gap-2 px-4 pt-3">
-                                <ComposerPrimitive.Attachments components={{ Attachment: AttachmentItem }} />
+                                {attachments.map((attachment) => (
+                                    <LocalAttachmentChip
+                                        key={attachment.id}
+                                        attachment={attachment}
+                                        onRemove={() => {
+                                            void handleRemoveAttachment(attachment.id)
+                                        }}
+                                    />
+                                ))}
                             </div>
                         ) : null}
 
@@ -696,6 +834,7 @@ export function HappyComposer(props: {
                                 onSelect={handleSelect}
                                 onKeyDown={handleKeyDown}
                                 onPaste={handlePaste}
+                                addAttachmentOnPaste={false}
                                 className="flex-1 resize-none bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder-[var(--app-hint)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                             />
                         </div>
@@ -703,6 +842,14 @@ export function HappyComposer(props: {
                         <ComposerButtons
                             canSend={canSend}
                             controlsDisabled={controlsDisabled}
+                            attachmentControl={(
+                                <AttachmentPickerButton
+                                    label={t('composer.attach')}
+                                    disabled={controlsDisabled}
+                                    isTouch={isTouch}
+                                    onFilesSelected={handleAttachmentFilesSelected}
+                                />
+                            )}
                             showSettingsButton={showSettingsButton}
                             onSettingsToggle={handleSettingsToggle}
                             showTerminalButton={showTerminalButton}

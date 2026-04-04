@@ -18,7 +18,6 @@ import { reconcileChatBlocks } from '@/chat/reconcile'
 import { HappyComposer } from '@/components/AssistantChat/HappyComposer'
 import { HappyThread } from '@/components/AssistantChat/HappyThread'
 import { useHappyRuntime } from '@/lib/assistant-runtime'
-import { createAttachmentAdapter } from '@/lib/attachmentAdapter'
 import { findUnsupportedCodexBuiltinSlashCommand } from '@/lib/codexSlashCommands'
 import { useToast } from '@/lib/toast-context'
 import { useTranslation } from '@/lib/use-translation'
@@ -45,6 +44,8 @@ export function SessionChat(props: {
     onRefresh: () => void
     onLoadMore: () => Promise<unknown>
     onSend: (text: string, attachments?: AttachmentMetadata[]) => void
+    resolveSessionId?: (sessionId: string) => Promise<string>
+    onSessionResolved?: (sessionId: string) => void
     onFlushPending: () => void
     onAtBottomChange: (atBottom: boolean) => void
     onRetryMessage?: (localId: string) => void
@@ -305,20 +306,12 @@ export function SessionChat(props: {
         setForceScrollToken((token) => token + 1)
     }, [agentFlavor, props.availableSlashCommands, props.onSend, props.session.id, addToast, haptic, t])
 
-    const attachmentAdapter = useMemo(() => {
-        if (!props.session.active) {
-            return undefined
-        }
-        return createAttachmentAdapter(props.api, props.session.id)
-    }, [props.api, props.session.id, props.session.active])
-
     const runtime = useHappyRuntime({
         session: props.session,
         blocks: reconciled.blocks,
         isSending: props.isSending,
         onSendMessage: handleSend,
         onAbort: handleAbort,
-        attachmentAdapter,
         allowSendWhenInactive: true
     })
 
@@ -369,6 +362,8 @@ export function SessionChat(props: {
                     />
 
                     <HappyComposer
+                        apiClient={props.api}
+                        sessionId={props.session.id}
                         disabled={props.isSending}
                         permissionMode={props.session.permissionMode}
                         collaborationMode={codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
@@ -389,6 +384,9 @@ export function SessionChat(props: {
                         onPermissionModeChange={handlePermissionModeChange}
                         onModelChange={handleModelChange}
                         onEffortChange={handleEffortChange}
+                        onSendMessage={handleSend}
+                        resolveSessionId={props.resolveSessionId}
+                        onSessionResolved={props.onSessionResolved}
                         onSwitchToRemote={handleSwitchToRemote}
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}

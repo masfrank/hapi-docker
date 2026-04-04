@@ -1,6 +1,6 @@
-import { ComposerPrimitive } from '@assistant-ui/react'
 import type { ConversationStatus } from '@/realtime/types'
 import { useTranslation } from '@/lib/use-translation'
+import type { ReactNode } from 'react'
 
 function VoiceAssistantIcon() {
     return (
@@ -121,24 +121,6 @@ function TerminalIcon() {
             <rect x="3" y="4" width="18" height="16" rx="2" ry="2" />
             <polyline points="7 9 10 12 7 15" />
             <line x1="12" y1="15" x2="17" y2="15" />
-        </svg>
-    )
-}
-
-function AttachmentIcon() {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95l-8.49 8.49a1.5 1.5 0 0 1-2.12-2.12l7.78-7.78" />
         </svg>
     )
 }
@@ -318,6 +300,7 @@ export function ComposerButtons(props: {
     voiceMicMuted?: boolean
     onVoiceToggle: () => void
     onVoiceMicToggle?: () => void
+    attachmentControl: ReactNode
     onSend: () => void
 }) {
     const { t } = useTranslation()
@@ -326,14 +309,7 @@ export function ComposerButtons(props: {
     return (
         <div className="flex items-center justify-between px-2 pb-2">
             <div className="flex items-center gap-1">
-                <ComposerPrimitive.AddAttachment
-                    aria-label={t('composer.attach')}
-                    title={t('composer.attach')}
-                    disabled={props.controlsDisabled}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-fg)]/60 transition-colors hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <AttachmentIcon />
-                </ComposerPrimitive.AddAttachment>
+                {props.attachmentControl}
 
                 {props.showSettingsButton ? (
                     <button

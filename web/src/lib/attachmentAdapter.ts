@@ -2,22 +2,103 @@ import type { AttachmentAdapter, PendingAttachment, CompleteAttachment, Attachme
 import type { ApiClient } from '@/api/client'
 import type { AttachmentMetadata } from '@/types/api'
 import { isImageMimeType } from '@/lib/fileAttachments'
+import { makeClientSideId } from '@/lib/messages'
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 const MAX_PREVIEW_BYTES = 5 * 1024 * 1024
 
+export type AttachmentUploadOptions = {
+    resolveSessionId?: (sessionId: string) => Promise<string>
+    onSessionResolved?: (sessionId: string) => void
+}
+
 type PendingUploadAttachment = PendingAttachment & {
     path?: string
     previewUrl?: string
+    sessionId?: string
 }
 
-export function createAttachmentAdapter(api: ApiClient, sessionId: string): AttachmentAdapter {
-    const cancelledAttachmentIds = new Set<string>()
+export async function resolveAttachmentSessionId(
+    sessionId: string,
+    options?: AttachmentUploadOptions
+): Promise<string> {
+    if (!options?.resolveSessionId) {
+        return sessionId
+    }
+    const resolvedSessionId = await options.resolveSessionId(sessionId)
+    if (resolvedSessionId !== sessionId) {
+        options.onSessionResolved?.(resolvedSessionId)
+    }
+    return resolvedSessionId
+}
 
-    const deleteUpload = async (path?: string) => {
+export async function uploadAttachmentFile(args: {
+    api: ApiClient
+    sessionId: string
+    file: File
+    options?: AttachmentUploadOptions
+}): Promise<{ metadata: AttachmentMetadata; sessionId: string }> {
+    const contentType = args.file.type || 'application/octet-stream'
+    if (args.file.size > MAX_UPLOAD_BYTES) {
+        throw new Error('File too large (max 50MB)')
+    }
+
+    const targetSessionId = await resolveAttachmentSessionId(args.sessionId, args.options)
+    const content = await fileToBase64(args.file)
+    const result = await args.api.uploadFile(targetSessionId, args.file.name, content, contentType)
+    if (!result.success || !result.path) {
+        throw new Error(result.error || 'Failed to upload file')
+    }
+
+    let previewUrl: string | undefined
+    if (isImageMimeType(contentType) && args.file.size <= MAX_PREVIEW_BYTES) {
+        previewUrl = await fileToDataUrl(args.file)
+    }
+
+    return {
+        sessionId: targetSessionId,
+        metadata: {
+            id: makeClientSideId('attachment'),
+            filename: args.file.name,
+            mimeType: contentType,
+            size: args.file.size,
+            path: result.path,
+            previewUrl
+        }
+    }
+}
+
+export async function deleteUploadedAttachment(args: {
+    api: ApiClient
+    sessionId: string
+    path?: string
+}): Promise<void> {
+    if (!args.path) {
+        return
+    }
+    await args.api.deleteUploadFile(args.sessionId, args.path)
+}
+
+export function createAttachmentAdapter(api: ApiClient, sessionId: string, options?: AttachmentUploadOptions): AttachmentAdapter {
+    const cancelledAttachmentIds = new Set<string>()
+    let currentSessionId = sessionId
+
+    const resolveTargetSessionId = async (): Promise<string> => {
+        const resolvedSessionId = await resolveAttachmentSessionId(currentSessionId, options)
+        if (resolvedSessionId !== currentSessionId) {
+            currentSessionId = resolvedSessionId
+        }
+        return currentSessionId
+    }
+
+    const deleteUpload = async (path?: string, targetSessionId?: string) => {
         if (!path) return
         try {
-            await api.deleteUploadFile(sessionId, path)
+            await deleteUploadedAttachment({
+                api,
+                sessionId: targetSessionId ?? currentSessionId,
+                path
+            })
         } catch {
             // Best effort cleanup
         }
@@ -27,7 +108,7 @@ export function createAttachmentAdapter(api: ApiClient, sessionId: string): Atta
         accept: '*/*',
 
         async *add({ file }): AsyncGenerator<PendingAttachment> {
-            const id = crypto.randomUUID()
+            const id = makeClientSideId('attachment')
             const contentType = file.type || 'application/octet-stream'
 
             yield {
@@ -40,6 +121,11 @@ export function createAttachmentAdapter(api: ApiClient, sessionId: string): Atta
             }
 
             try {
+                if (cancelledAttachmentIds.has(id)) {
+                    return
+                }
+
+                const targetSessionId = await resolveTargetSessionId()
                 if (cancelledAttachmentIds.has(id)) {
                     return
                 }
@@ -70,10 +156,10 @@ export function createAttachmentAdapter(api: ApiClient, sessionId: string): Atta
                     status: { type: 'running', reason: 'uploading', progress: 50 }
                 }
 
-                const result = await api.uploadFile(sessionId, file.name, content, contentType)
+                const result = await api.uploadFile(targetSessionId, file.name, content, contentType)
                 if (cancelledAttachmentIds.has(id)) {
                     if (result.success && result.path) {
-                        await deleteUpload(result.path)
+                        await deleteUpload(result.path, targetSessionId)
                     }
                     return
                 }
@@ -104,7 +190,8 @@ export function createAttachmentAdapter(api: ApiClient, sessionId: string): Atta
                     file,
                     status: { type: 'requires-action', reason: 'composer-send' },
                     path: result.path,
-                    previewUrl
+                    previewUrl,
+                    sessionId: targetSessionId
                 } as PendingUploadAttachment
             } catch {
                 yield {
@@ -120,8 +207,8 @@ export function createAttachmentAdapter(api: ApiClient, sessionId: string): Atta
 
         async remove(attachment: Attachment): Promise<void> {
             cancelledAttachmentIds.add(attachment.id)
-            const path = (attachment as PendingUploadAttachment).path
-            await deleteUpload(path)
+            const pending = attachment as PendingUploadAttachment
+            await deleteUpload(pending.path, pending.sessionId)
         },
 
         async send(attachment: PendingAttachment): Promise<CompleteAttachment> {

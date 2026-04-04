@@ -29,6 +29,8 @@ import { loadEmbeddedAssetMap, type EmbeddedWebAsset } from './embeddedAssets'
 import { isBunCompiled } from '../utils/bunCompiled'
 import type { Store } from '../store'
 
+const MIN_HTTP_REQUEST_BODY_SIZE = 100 * 1024 * 1024
+
 function findWebappDistDir(): { distDir: string; indexHtmlPath: string } {
     const candidates = [
         join(process.cwd(), '..', 'web', 'dist'),
@@ -53,6 +55,10 @@ function serveEmbeddedAsset(asset: EmbeddedWebAsset): Response {
             'Content-Type': asset.mimeType
         }
     })
+}
+
+export function resolveMaxRequestBodySize(socketHandlerMaxRequestBodySize: number): number {
+    return Math.max(socketHandlerMaxRequestBodySize, MIN_HTTP_REQUEST_BODY_SIZE)
 }
 
 function createWebApp(options: {
@@ -236,7 +242,7 @@ export async function startWebServer(options: {
         hostname: configuration.listenHost,
         port: configuration.listenPort,
         idleTimeout: Math.max(30, socketHandler.idleTimeout),
-        maxRequestBodySize: socketHandler.maxRequestBodySize,
+        maxRequestBodySize: resolveMaxRequestBodySize(socketHandler.maxRequestBodySize),
         websocket: socketHandler.websocket,
         fetch: (req, server) => {
             const url = new URL(req.url)

@@ -220,55 +220,58 @@ function SessionPage() {
         flushPending,
         setAtBottom,
     } = useMessages(api, sessionId)
+    const resolveActiveSessionId = useCallback(async (currentSessionId: string) => {
+        if (!api || !session || session.active) {
+            return currentSessionId
+        }
+        try {
+            return await api.resumeSession(currentSessionId)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Resume failed'
+            addToast({
+                title: 'Resume failed',
+                body: message,
+                sessionId: currentSessionId,
+                url: ''
+            })
+            throw error
+        }
+    }, [addToast, api, session])
+
+    const handleSessionResolved = useCallback((resolvedSessionId: string) => {
+        void (async () => {
+            if (api) {
+                if (session && resolvedSessionId !== session.id) {
+                    seedMessageWindowFromSession(session.id, resolvedSessionId)
+                    queryClient.setQueryData(queryKeys.session(resolvedSessionId), {
+                        session: { ...session, id: resolvedSessionId, active: true }
+                    })
+                }
+                try {
+                    await Promise.all([
+                        queryClient.prefetchQuery({
+                            queryKey: queryKeys.session(resolvedSessionId),
+                            queryFn: () => api.getSession(resolvedSessionId),
+                        }),
+                        fetchLatestMessages(api, resolvedSessionId),
+                    ])
+                } catch {
+                }
+            }
+            navigate({
+                to: '/sessions/$sessionId',
+                params: { sessionId: resolvedSessionId },
+                replace: true
+            })
+        })()
+    }, [api, navigate, queryClient, session])
     const {
         sendMessage,
         retryMessage,
         isSending,
     } = useSendMessage(api, sessionId, {
-        resolveSessionId: async (currentSessionId) => {
-            if (!api || !session || session.active) {
-                return currentSessionId
-            }
-            try {
-                return await api.resumeSession(currentSessionId)
-            } catch (error) {
-                const message = error instanceof Error ? error.message : 'Resume failed'
-                addToast({
-                    title: 'Resume failed',
-                    body: message,
-                    sessionId: currentSessionId,
-                    url: ''
-                })
-                throw error
-            }
-        },
-        onSessionResolved: (resolvedSessionId) => {
-            void (async () => {
-                if (api) {
-                    if (session && resolvedSessionId !== session.id) {
-                        seedMessageWindowFromSession(session.id, resolvedSessionId)
-                        queryClient.setQueryData(queryKeys.session(resolvedSessionId), {
-                            session: { ...session, id: resolvedSessionId, active: true }
-                        })
-                    }
-                    try {
-                        await Promise.all([
-                            queryClient.prefetchQuery({
-                                queryKey: queryKeys.session(resolvedSessionId),
-                                queryFn: () => api.getSession(resolvedSessionId),
-                            }),
-                            fetchLatestMessages(api, resolvedSessionId),
-                        ])
-                    } catch {
-                    }
-                }
-                navigate({
-                    to: '/sessions/$sessionId',
-                    params: { sessionId: resolvedSessionId },
-                    replace: true
-                })
-            })()
-        },
+        resolveSessionId: resolveActiveSessionId,
+        onSessionResolved: handleSessionResolved,
         onBlocked: (reason) => {
             if (reason === 'no-api') {
                 addToast({
@@ -328,6 +331,8 @@ function SessionPage() {
             onRefresh={refreshSelectedSession}
             onLoadMore={loadMoreMessages}
             onSend={sendMessage}
+            resolveSessionId={resolveActiveSessionId}
+            onSessionResolved={handleSessionResolved}
             onFlushPending={flushPending}
             onAtBottomChange={setAtBottom}
             onRetryMessage={retryMessage}
