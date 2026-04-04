@@ -83,6 +83,49 @@ describe('normalizeDecryptedMessage', () => {
         })
     })
 
+    it('preserves Claude sidechain root prompt records with normalized sidechain keys', () => {
+        const message = makeMessage({
+            role: 'agent',
+            meta: {
+                subagent: {
+                    kind: 'spawn',
+                    sidechainKey: 'task-1',
+                    prompt: 'Investigate flaky test'
+                }
+            },
+            content: {
+                type: 'output',
+                data: {
+                    type: 'user',
+                    isSidechain: true,
+                    message: {
+                        content: 'Investigate flaky test'
+                    }
+                }
+            }
+        })
+
+        expect(normalizeDecryptedMessage(message)).toMatchObject({
+            id: 'msg-1',
+            role: 'agent',
+            isSidechain: true,
+            sidechainKey: 'task-1',
+            meta: {
+                subagent: {
+                    kind: 'spawn',
+                    sidechainKey: 'task-1',
+                    prompt: 'Investigate flaky test'
+                }
+            },
+            content: [
+                {
+                    type: 'sidechain',
+                    prompt: 'Investigate flaky test'
+                }
+            ]
+        })
+    })
+
     it('keeps normal Codex payloads root-level when parentToolCallId is absent', () => {
         const message = makeMessage({
             role: 'agent',

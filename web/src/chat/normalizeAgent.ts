@@ -144,7 +144,7 @@ function normalizeUserOutput(
 ): NormalizedMessage | null {
     const uuid = asString(data.uuid) ?? messageId
     const parentUUID = asString(data.parentUuid) ?? null
-    const isSidechain = Boolean(data.isSidechain)
+    const { isSidechain, sidechainKey } = resolveSidechainMetadata(data, meta)
 
     const message = isObject(data.message) ? data.message : null
     if (!message) return null
@@ -170,6 +170,8 @@ function normalizeUserOutput(
             createdAt,
             role: 'agent',
             isSidechain: true,
+            ...(sidechainKey ? { sidechainKey } : {}),
+            meta,
             content: [{ type: 'sidechain', uuid, prompt: messageContent }]
         }
     }
