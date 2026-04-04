@@ -295,6 +295,7 @@ describe('CodexSubagentPreviewCard', () => {
         fireEvent.click(screen.getByRole('button', { name: /Subagent conversation/i }))
 
         expect(screen.getByText('Task child answer')).toBeInTheDocument()
+        expect(screen.getAllByText('Waiting for approval…')).toHaveLength(1)
         expect(screen.getAllByText('Investigate flaky Task sidechain rendering').length).toBeGreaterThan(0)
     })
 

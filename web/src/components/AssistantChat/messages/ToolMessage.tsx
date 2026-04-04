@@ -48,6 +48,13 @@ function splitTaskChildren(block: ToolCallBlock): { pending: ChatBlock[]; rest: 
     return { pending, rest }
 }
 
+function createTaskPreviewBlock(block: ToolCallBlock, restChildren: ChatBlock[]): ToolCallBlock {
+    return {
+        ...block,
+        children: restChildren
+    }
+}
+
 function HappyNestedBlockList(props: {
     blocks: ChatBlock[]
 }) {
@@ -141,6 +148,7 @@ function renderToolBlock(
 
     if (block.tool.name === 'Task') {
         const taskChildren = splitTaskChildren(block)
+        const previewBlock = createTaskPreviewBlock(block, taskChildren.rest)
 
         return (
             <>
@@ -158,7 +166,7 @@ function renderToolBlock(
                     </div>
                 ) : null}
                 <div className="mt-2">
-                    <SubagentPreviewCard block={block} />
+                    <SubagentPreviewCard block={previewBlock} />
                 </div>
             </>
         )
