@@ -27,6 +27,47 @@ function normalizeToolResultPermissions(value: unknown): ToolResultPermission | 
     }
 }
 
+function extractSubagentSidechainKey(meta: unknown): string | null {
+    if (!isObject(meta)) return null
+
+    const subagent = meta.subagent
+    if (Array.isArray(subagent)) {
+        for (const item of subagent) {
+            if (item && typeof item === 'object' && typeof (item as { sidechainKey?: unknown }).sidechainKey === 'string') {
+                const sidechainKey = (item as { sidechainKey: string }).sidechainKey
+                if (sidechainKey.length > 0) return sidechainKey
+            }
+        }
+        return null
+    }
+
+    if (subagent && typeof subagent === 'object' && typeof (subagent as { sidechainKey?: unknown }).sidechainKey === 'string') {
+        const sidechainKey = (subagent as { sidechainKey: string }).sidechainKey
+        return sidechainKey.length > 0 ? sidechainKey : null
+    }
+
+    return null
+}
+
+function resolveSidechainMetadata(
+    data: Record<string, unknown>,
+    meta: unknown
+): { isSidechain: boolean; sidechainKey?: string } {
+    const subagentSidechainKey = extractSubagentSidechainKey(meta)
+    if (subagentSidechainKey) {
+        return {
+            isSidechain: true,
+            sidechainKey: subagentSidechainKey
+        }
+    }
+
+    const codexSidechainKey = Boolean(data.isSidechain) ? asString(data.parentToolCallId) ?? undefined : undefined
+    return {
+        isSidechain: Boolean(data.isSidechain),
+        ...(codexSidechainKey ? { sidechainKey: codexSidechainKey } : {})
+    }
+}
+
 function normalizeAgentEvent(value: unknown): AgentEvent | null {
     if (!isObject(value) || typeof value.type !== 'string') return null
     return value as AgentEvent
@@ -41,7 +82,7 @@ function normalizeAssistantOutput(
 ): NormalizedMessage | null {
     const uuid = asString(data.uuid) ?? messageId
     const parentUUID = asString(data.parentUuid) ?? null
-    const isSidechain = Boolean(data.isSidechain)
+    const { isSidechain, sidechainKey } = resolveSidechainMetadata(data, meta)
 
     const message = isObject(data.message) ? data.message : null
     if (!message) return null
@@ -81,6 +122,7 @@ function normalizeAssistantOutput(
         createdAt,
         role: 'agent',
         isSidechain,
+        ...(sidechainKey ? { sidechainKey } : {}),
         content: blocks,
         meta,
         usage: inputTokens !== null && outputTokens !== null ? {
@@ -314,8 +356,7 @@ export function normalizeAgentRecord(
     if (content.type === AGENT_MESSAGE_PAYLOAD_TYPE) {
         const data = isObject(content.data) ? content.data : null
         if (!data || typeof data.type !== 'string') return null
-        const isSidechain = Boolean(data.isSidechain)
-        const sidechainKey = isSidechain ? asString(data.parentToolCallId) ?? undefined : undefined
+        const { isSidechain, sidechainKey } = resolveSidechainMetadata(data, meta)
 
         if (data.type === 'message' && typeof data.message === 'string') {
             return {

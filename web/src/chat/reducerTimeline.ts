@@ -173,7 +173,7 @@ export function reduceTimeline(
                         block.tool.startedAt = msg.createdAt
                     }
 
-                    if (c.name === 'Task' && !context.consumedGroupIds.has(msg.id)) {
+                    if (!context.consumedGroupIds.has(msg.id)) {
                         const sidechain = context.groups.get(msg.id) ?? null
                         if (sidechain && sidechain.length > 0) {
                             context.consumedGroupIds.add(msg.id)

@@ -1,7 +1,7 @@
 import type { AgentState } from '@/types/api'
 import type { ChatBlock, NormalizedMessage, ToolCallBlock, UsageData } from '@/chat/types'
-import { annotateCodexSidechains } from '@/chat/codexSidechain'
 import { applyCodexLifecycleAggregation } from '@/chat/codexLifecycle'
+import { annotateSubagentSidechains } from '@/chat/subagentSidechain'
 import { traceMessages, type TracedMessage } from '@/chat/tracer'
 import { dedupeAgentEvents, foldApiErrorEvents } from '@/chat/reducerEvents'
 import { collectTitleChanges, collectToolIdsFromMessages, ensureToolBlock, getPermissions } from '@/chat/reducerTools'
@@ -118,7 +118,7 @@ export function reduceChatBlocks(
     const titleChangesByToolUseId = collectTitleChanges(normalized)
 
     const traced = traceMessages(normalized)
-    const annotated = annotateCodexSidechains(traced)
+    const annotated = annotateSubagentSidechains(traced)
     const { groups, root } = groupMessagesBySidechain(annotated)
 
     const consumedGroupIds = new Set<string>()

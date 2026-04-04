@@ -250,4 +250,45 @@ describe('reduceChatBlocks', () => {
 
         expect(spawnBlock?.lifecycle?.latestText).toBe('Final child answer')
     })
+
+    it('groups Claude sidechain messages under the parent Task tool call', () => {
+        const messages: NormalizedMessage[] = [
+            agentToolCall('msg-task-call', 'task-1', 'Task', { prompt: 'Investigate flaky test' }, 1),
+            {
+                ...userText('child-user', 'child prompt', 2),
+                isSidechain: true,
+                meta: {
+                    subagent: {
+                        kind: 'message',
+                        sidechainKey: 'msg-task-call'
+                    }
+                }
+            },
+            {
+                ...agentText('child-agent', 'child answer', 3),
+                isSidechain: true,
+                meta: {
+                    subagent: {
+                        kind: 'message',
+                        sidechainKey: 'msg-task-call'
+                    }
+                }
+            }
+        ]
+
+        const reduced = reduceChatBlocks(messages, null)
+
+        expect(reduced.blocks).toContainEqual(
+            expect.objectContaining({
+                kind: 'tool-call',
+                tool: expect.objectContaining({
+                    name: 'Task'
+                }),
+                children: expect.arrayContaining([
+                    expect.objectContaining({ kind: 'user-text', text: 'child prompt' }),
+                    expect.objectContaining({ kind: 'agent-text', text: 'child answer' })
+                ])
+            })
+        )
+    })
 })
