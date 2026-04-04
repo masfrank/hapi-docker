@@ -65,7 +65,7 @@ export function traceMessages(messages: NormalizedMessage[]): TracedMessage[] {
             if (content.type !== 'tool-call' || content.name !== 'Task') continue
             const input = content.input
             if (!isObject(input) || typeof input.prompt !== 'string') continue
-            state.promptToTaskId.set(input.prompt, message.id)
+            state.promptToTaskId.set(input.prompt, content.id)
         }
     }
 

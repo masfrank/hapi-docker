@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { reduceChatBlocks } from './reducer'
-import type { NormalizedMessage, ToolCallBlock } from './types'
+import type { NormalizedAgentContent, NormalizedMessage, ToolCallBlock } from './types'
 
 function agentToolCall(
     messageId: string,
@@ -74,6 +74,24 @@ function agentText(id: string, text: string, createdAt: number): NormalizedMessa
             uuid: `${id}-uuid`,
             parentUUID: null
         }]
+    }
+}
+
+function agentMessage(
+    id: string,
+    createdAt: number,
+    content: NormalizedAgentContent[],
+    extra: Partial<Pick<NormalizedMessage, 'meta' | 'isSidechain' | 'sidechainKey'>> = {}
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        role: 'agent',
+        isSidechain: extra.isSidechain ?? false,
+        ...(extra.sidechainKey ? { sidechainKey: extra.sidechainKey } : {}),
+        ...(extra.meta ? { meta: extra.meta } : {}),
+        content
     }
 }
 
@@ -253,24 +271,42 @@ describe('reduceChatBlocks', () => {
 
     it('groups Claude sidechain messages under the parent Task tool call', () => {
         const messages: NormalizedMessage[] = [
-            agentToolCall('msg-task-call', 'task-1', 'Task', { prompt: 'Investigate flaky test' }, 1),
+            agentMessage('msg-parent', 1, [{
+                type: 'tool-call',
+                id: 'other-tool',
+                name: 'OtherTool',
+                input: { prompt: 'ignore me' },
+                description: null,
+                uuid: 'msg-parent-uuid',
+                parentUUID: null
+            }, {
+                type: 'tool-call',
+                id: 'task-1',
+                name: 'Task',
+                input: { prompt: 'Investigate flaky test' },
+                description: null,
+                uuid: 'msg-parent-uuid',
+                parentUUID: null
+            }]),
             {
                 ...userText('child-user', 'child prompt', 2),
                 isSidechain: true,
+                sidechainKey: 'task-1',
                 meta: {
                     subagent: {
                         kind: 'message',
-                        sidechainKey: 'msg-task-call'
+                        sidechainKey: 'task-1'
                     }
                 }
             },
             {
                 ...agentText('child-agent', 'child answer', 3),
                 isSidechain: true,
+                sidechainKey: 'task-1',
                 meta: {
                     subagent: {
                         kind: 'message',
-                        sidechainKey: 'msg-task-call'
+                        sidechainKey: 'task-1'
                     }
                 }
             }
@@ -278,17 +314,19 @@ describe('reduceChatBlocks', () => {
 
         const reduced = reduceChatBlocks(messages, null)
 
-        expect(reduced.blocks).toContainEqual(
-            expect.objectContaining({
-                kind: 'tool-call',
-                tool: expect.objectContaining({
-                    name: 'Task'
-                }),
-                children: expect.arrayContaining([
-                    expect.objectContaining({ kind: 'user-text', text: 'child prompt' }),
-                    expect.objectContaining({ kind: 'agent-text', text: 'child answer' })
-                ])
-            })
+        const taskBlock = reduced.blocks.find(
+            (block): block is ToolCallBlock => block.kind === 'tool-call' && block.tool.id === 'task-1'
         )
+        const otherBlock = reduced.blocks.find(
+            (block): block is ToolCallBlock => block.kind === 'tool-call' && block.tool.id === 'other-tool'
+        )
+
+        expect(taskBlock?.children).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ kind: 'user-text', text: 'child prompt' }),
+                expect.objectContaining({ kind: 'agent-text', text: 'child answer' })
+            ])
+        )
+        expect(otherBlock?.children).toHaveLength(0)
     })
 })
