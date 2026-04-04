@@ -157,9 +157,8 @@ function processSpawnSignal(
     if (!name) return null
 
     const agentType = typeof input.subagent_type === 'string' ? input.subagent_type : undefined
-    const description = typeof input.description === 'string'
-        ? input.description
-        : signal.prompt ?? null
+    const description = signal.prompt
+        ?? (typeof input.description === 'string' ? input.description : null)
 
     const delta: TeamStateDelta = {
         _action: 'update',

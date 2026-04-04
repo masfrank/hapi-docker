@@ -145,4 +145,71 @@ describe('extractTeamStateFromMessageContent - normalized subagent metadata', ()
             teamName: undefined
         })
     })
+
+    test('prefers normalized subagent metadata over conflicting raw tool data', () => {
+        const delta = extractTeamStateFromMessageContent({
+            role: 'agent',
+            content: {
+                type: 'codex',
+                data: {
+                    type: 'tool-call',
+                    name: 'CodexSpawnAgent',
+                    input: {
+                        team_name: 'test-team',
+                        name: 'worker-1',
+                        description: 'Raw tool description'
+                    },
+                    meta: {
+                        subagent: {
+                            kind: 'spawn',
+                            sidechainKey: 'task-3',
+                            prompt: 'Normalized prompt'
+                        }
+                    }
+                }
+            }
+        })
+
+        expect(delta).toMatchObject({
+            members: [{ name: 'worker-1', status: 'active' }],
+            tasks: [{ title: 'Normalized prompt', status: 'in_progress', owner: 'worker-1' }]
+        })
+        expect(delta?.tasks?.[0]).not.toMatchObject({
+            title: 'Raw tool description'
+        })
+    })
+
+    test('falls back to raw tool parsing when normalized metadata is unusable', () => {
+        const delta = extractTeamStateFromMessageContent({
+            role: 'assistant',
+            content: {
+                type: 'output',
+                data: {
+                    type: 'assistant',
+                    message: {
+                        content: [{
+                            type: 'tool_use',
+                            id: 'task-4',
+                            name: 'Task',
+                            input: {
+                                team_name: 'test-team',
+                                name: 'worker-2',
+                                description: 'Raw fallback description'
+                            }
+                        }]
+                    }
+                }
+            },
+            meta: {
+                subagent: {
+                    kind: 'spawn'
+                }
+            }
+        })
+
+        expect(delta).toMatchObject({
+            members: [{ name: 'worker-2', status: 'active' }],
+            tasks: [{ title: 'Raw fallback description', status: 'in_progress', owner: 'worker-2' }]
+        })
+    })
 })
