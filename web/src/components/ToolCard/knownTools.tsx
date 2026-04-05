@@ -6,6 +6,7 @@ import type { ChecklistItem } from '@/components/ToolCard/checklist'
 import { extractTodoChecklist, extractUpdatePlanChecklist } from '@/components/ToolCard/checklist'
 import { basename, resolveDisplayPath } from '@/utils/path'
 import { getInputStringAny, truncate } from '@/lib/toolInputUtils'
+import { parseCodexMcpElicitationInput } from '@/components/ToolCard/codexMcpElicitation'
 
 const DEFAULT_ICON_CLASS = 'h-3.5 w-3.5'
 // Tool presentation registry for `hapi/web` (aligned with `hapi-app`).
@@ -168,6 +169,25 @@ export const knownTools: Record<string, {
             return tool ? `Permission: ${tool}` : 'Permission request'
         },
         subtitle: (opts) => getInputStringAny(opts.input, ['message', 'command']) ?? null,
+        minimal: true
+    },
+    CodexMcpElicitation: {
+        icon: () => <PuzzleIcon className={DEFAULT_ICON_CLASS} />,
+        title: (opts) => {
+            const parsed = parseCodexMcpElicitationInput(opts.input)
+            if (!parsed) return 'MCP elicitation'
+            const toolTitle = parsed.meta?.toolTitle
+            if (toolTitle) {
+                return parsed.mode === 'url' ? `Approve Sign-in: ${toolTitle}` : `Approve Tool: ${toolTitle}`
+            }
+            return parsed.mode === 'url'
+                ? `Approve Sign-in: ${parsed.serverName}`
+                : `Approve Tool: ${parsed.serverName}`
+        },
+        subtitle: (opts) => {
+            const parsed = parseCodexMcpElicitationInput(opts.input)
+            return parsed?.meta?.toolDescription ?? null
+        },
         minimal: true
     },
     shell_command: {

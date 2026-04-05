@@ -8,6 +8,7 @@
  */
 
 import type { CodexCollaborationMode, DecryptedMessage, PermissionMode, Session, SyncEvent } from '@hapi/protocol/types'
+import type { McpElicitationAction } from '@hapi/protocol/types'
 import type { Server } from 'socket.io'
 import type { Store } from '../store'
 import type { RpcRegistry } from '../socket/rpcRegistry'
@@ -263,6 +264,15 @@ export class SyncEngine {
         decision?: 'approved' | 'approved_for_session' | 'denied' | 'abort'
     ): Promise<void> {
         await this.rpcGateway.denyPermission(sessionId, requestId, decision)
+    }
+
+    async respondToMcpElicitation(
+        sessionId: string,
+        requestId: string,
+        action: McpElicitationAction,
+        content?: unknown | null
+    ): Promise<void> {
+        await this.rpcGateway.respondToMcpElicitation(sessionId, requestId, action, content)
     }
 
     async abortSession(sessionId: string): Promise<void> {

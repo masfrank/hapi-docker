@@ -10,6 +10,8 @@ export type {
     AgentState,
     AttachmentMetadata,
     CodexCollaborationMode,
+    McpElicitationAction,
+    McpElicitationResponse,
     PermissionMode,
     Session,
     SessionSummary,

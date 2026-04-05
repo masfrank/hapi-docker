@@ -87,6 +87,17 @@ export const AgentStateSchema = z.object({
 
 export type AgentState = z.infer<typeof AgentStateSchema>
 
+export const McpElicitationActionSchema = z.enum(['accept', 'decline', 'cancel'])
+export type McpElicitationAction = z.infer<typeof McpElicitationActionSchema>
+
+export const McpElicitationResponseSchema = z.object({
+    id: z.string(),
+    action: McpElicitationActionSchema,
+    content: z.unknown().nullish()
+})
+
+export type McpElicitationResponse = z.infer<typeof McpElicitationResponseSchema>
+
 export const TodoItemSchema = z.object({
     content: z.string(),
     status: z.enum(['pending', 'in_progress', 'completed']),

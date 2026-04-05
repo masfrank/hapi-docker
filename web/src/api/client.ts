@@ -9,6 +9,7 @@ import type {
     GitCommandResponse,
     MachinePathsExistsResponse,
     MachinesResponse,
+    McpElicitationAction,
     MessagesResponse,
     PermissionMode,
     PushSubscriptionPayload,
@@ -363,6 +364,20 @@ export class ApiClient {
         await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/permissions/${encodeURIComponent(requestId)}/deny`, {
             method: 'POST',
             body: JSON.stringify(options ?? {})
+        })
+    }
+
+    async respondToMcpElicitation(
+        sessionId: string,
+        requestId: string,
+        payload: {
+            action: McpElicitationAction
+            content?: unknown | null
+        }
+    ): Promise<void> {
+        await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/mcp-elicitation/${encodeURIComponent(requestId)}/respond`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
         })
     }
 
