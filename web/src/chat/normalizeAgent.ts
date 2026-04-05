@@ -50,11 +50,22 @@ function normalizeAssistantOutput(
     const blocks: NormalizedAgentContent[] = []
 
     if (typeof modelContent === 'string') {
-        blocks.push({ type: 'text', text: modelContent, uuid, parentUUID })
+        // Skip "No response requested." — Claude's auto-response to system-injected
+        // messages (task notifications, system reminders). We keep the message
+        // structure (uuid, parentUUID, usage) intact so the sidechain UUID chain
+        // is not broken; only the text block is suppressed.
+        const trimmed = modelContent.trim()
+        if (trimmed !== 'No response requested.' && trimmed !== 'No response requested') {
+            blocks.push({ type: 'text', text: modelContent, uuid, parentUUID })
+        }
     } else if (Array.isArray(modelContent)) {
         for (const block of modelContent) {
             if (!isObject(block) || typeof block.type !== 'string') continue
             if (block.type === 'text' && typeof block.text === 'string') {
+                const trimmed = block.text.trim()
+                if (trimmed === 'No response requested.' || trimmed === 'No response requested') {
+                    continue
+                }
                 blocks.push({ type: 'text', text: block.text, uuid, parentUUID })
                 continue
             }
@@ -74,16 +85,6 @@ function normalizeAssistantOutput(
     const usage = isObject(message.usage) ? (message.usage as Record<string, unknown>) : null
     const inputTokens = usage ? asNumber(usage.input_tokens) : null
     const outputTokens = usage ? asNumber(usage.output_tokens) : null
-
-    // Drop assistant messages that are just "No response requested." — these
-    // are Claude's automatic response to system-injected user messages (task
-    // notifications, system reminders) and should not be shown to the user.
-    if (blocks.length === 1 && blocks[0].type === 'text') {
-        const trimmed = blocks[0].text.trim()
-        if (trimmed === 'No response requested.' || trimmed === 'No response requested') {
-            return null
-        }
-    }
 
     return {
         id: messageId,
@@ -209,18 +210,7 @@ export function isSkippableAgentContent(content: unknown): boolean {
     const data = isObject(content.data) ? content.data : null
     if (!data) return false
     if (Boolean(data.isMeta) || Boolean(data.isCompactSummary)) return true
-    if (!isClaudeChatVisibleMessage({ type: data.type, subtype: data.subtype })) return true
-
-    // Drop "No response requested." — Claude's auto-response to system-injected
-    // messages (task notifications, system reminders).
-    if (data.type === 'assistant') {
-        const msg = isObject(data.message) ? data.message : null
-        const text = typeof msg?.content === 'string' ? msg.content.trim() : null
-        if (text === 'No response requested.' || text === 'No response requested') {
-            return true
-        }
-    }
-    return false
+    return !isClaudeChatVisibleMessage({ type: data.type, subtype: data.subtype })
 }
 
 export function isCodexContent(content: unknown): boolean {

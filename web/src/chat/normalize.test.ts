@@ -196,7 +196,7 @@ describe('normalizeDecryptedMessage', () => {
         })
     })
 
-    it('drops assistant messages that are just "No response requested."', () => {
+    it('suppresses "No response requested." text but keeps the message record', () => {
         const message = makeMessage({
             role: 'agent',
             content: {
@@ -209,7 +209,14 @@ describe('normalizeDecryptedMessage', () => {
             }
         })
 
-        expect(normalizeDecryptedMessage(message)).toBeNull()
+        const normalized = normalizeDecryptedMessage(message)
+        // Message is kept (uuid chain intact) but text content is filtered out
+        expect(normalized).not.toBeNull()
+        expect(normalized?.role).toBe('agent')
+        if (normalized?.role === 'agent') {
+            const textBlocks = normalized.content.filter(b => b.type === 'text')
+            expect(textBlocks).toHaveLength(0)
+        }
     })
 
     it('keeps assistant messages with real content', () => {
