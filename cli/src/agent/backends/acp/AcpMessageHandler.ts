@@ -159,8 +159,17 @@ export class AcpMessageHandler {
             const content = update.content;
             const text = extractTextContent(content);
             if (text) {
+                // Check once whether the buffered text is a prefix of this
+                // chunk (cumulative streaming). Used below by both the
+                // rate-limit and internal-event filters to clear stale
+                // prefixes that would otherwise leak on flushText().
+                const hadBufferedPrefix = this.bufferedText !== '' && text.startsWith(this.bufferedText);
+
                 const rateLimit = parseRateLimitText(text);
                 if (rateLimit) {
+                    if (hadBufferedPrefix) {
+                        this.bufferedText = '';
+                    }
                     if (rateLimit.suppress) {
                         return;
                     }
@@ -170,10 +179,8 @@ export class AcpMessageHandler {
                 }
                 // Drop internal event JSON (e.g. { type: "output", data: { ... } })
                 // that should never appear as visible text.
-                // Also clear buffered text if it is a prefix of the leaked JSON
-                // (cumulative streaming: earlier chunk was an incomplete prefix).
                 if (isInternalEventJson(text)) {
-                    if (this.bufferedText && text.startsWith(this.bufferedText)) {
+                    if (hadBufferedPrefix) {
                         this.bufferedText = '';
                     }
                     return;

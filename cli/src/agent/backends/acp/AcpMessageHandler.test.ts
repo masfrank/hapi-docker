@@ -446,4 +446,65 @@ describe('AcpMessageHandler', () => {
         // Both the prefix and the full chunk should be gone
         expect(messages).toEqual([]);
     });
+
+    it('clears buffered prefix when cumulative rate_limit_event chunk arrives', () => {
+        const messages: AgentMessage[] = [];
+        const handler = new AcpMessageHandler((message) => messages.push(message));
+
+        // First chunk: incomplete JSON prefix
+        handler.handleUpdate({
+            sessionUpdate: ACP_SESSION_UPDATE_TYPES.agentMessageChunk,
+            content: { type: 'text', text: '{"type":"rate' }
+        });
+
+        // Second chunk: full cumulative rate_limit_event (allowed — should be suppressed)
+        const rateLimitJson = JSON.stringify({
+            type: 'rate_limit_event',
+            rate_limit_info: {
+                status: 'allowed',
+                resetsAt: 1774278000,
+            },
+        });
+        handler.handleUpdate({
+            sessionUpdate: ACP_SESSION_UPDATE_TYPES.agentMessageChunk,
+            content: { type: 'text', text: rateLimitJson }
+        });
+
+        handler.flushText();
+
+        // Both the prefix and the full chunk should be gone
+        expect(messages).toEqual([]);
+    });
+
+    it('clears buffered prefix when cumulative displayable rate_limit_event arrives', () => {
+        const messages: AgentMessage[] = [];
+        const handler = new AcpMessageHandler((message) => messages.push(message));
+
+        // First chunk: incomplete prefix
+        handler.handleUpdate({
+            sessionUpdate: ACP_SESSION_UPDATE_TYPES.agentMessageChunk,
+            content: { type: 'text', text: '{"type":"rate' }
+        });
+
+        // Second chunk: full rate_limit_event with displayable status
+        const rateLimitJson = JSON.stringify({
+            type: 'rate_limit_event',
+            rate_limit_info: {
+                status: 'allowed_warning',
+                resetsAt: 1774278000,
+                utilization: 0.9,
+                rateLimitType: 'five_hour',
+            },
+        });
+        handler.handleUpdate({
+            sessionUpdate: ACP_SESSION_UPDATE_TYPES.agentMessageChunk,
+            content: { type: 'text', text: rateLimitJson }
+        });
+
+        handler.flushText();
+
+        // Should only have the converted warning, no raw JSON prefix
+        expect(messages).toHaveLength(1);
+        expect((messages[0] as { text: string }).text).toMatch(/^Claude AI usage limit warning\|/);
+    });
 });
