@@ -24,10 +24,6 @@ function createFakeSession() {
     return { session, queueItems };
 }
 
-function isPlanTool(name: string): boolean {
-    return name === 'exit_plan_mode' || name === 'ExitPlanMode';
-}
-
 describe('PermissionHandler — YOLO plan mode', () => {
     it('injects PLAN_FAKE_RESTART and denies exit_plan_mode in bypassPermissions', async () => {
         const { session, queueItems } = createFakeSession();
