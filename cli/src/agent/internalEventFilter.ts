@@ -1,22 +1,16 @@
 /**
- * Detect internal event JSON that leaks into agent text output.
+ * Detect internal session-metadata JSON that leaks into agent text output.
  *
- * Claude's SDK occasionally emits internal control messages (session metadata,
- * rate-limit envelopes, etc.) as text chunks. These are not meant for display.
+ * Claude's SDK occasionally emits internal control messages as text chunks.
+ * The known leaked shape is the session metadata envelope:
+ *   { type: "output", data: { parentUuid, sessionId, userType, ... } }
  *
- * This function catches the ones that slip past `parseRateLimitText`:
- *   - { type: "output", data: { parentUuid, sessionId, ... } }
- *   - Any other JSON object whose `type` is a known internal envelope type.
+ * We match on the specific structure rather than a broad type allowlist to
+ * avoid accidentally suppressing legitimate assistant JSON.
  *
  * Only called for text that starts with '{', so the fast-path for normal
  * prose has zero overhead.
  */
-const INTERNAL_TYPES = new Set([
-    'output',
-    'event',
-    'queue-operation',
-]);
-
 export function isInternalEventJson(text: string): boolean {
     if (text[0] !== '{') return false;
 
@@ -29,8 +23,14 @@ export function isInternalEventJson(text: string): boolean {
     if (typeof parsed !== 'object' || parsed === null) return false;
 
     const record = parsed as Record<string, unknown>;
-    if (typeof record.type === 'string' && INTERNAL_TYPES.has(record.type)) {
-        return true;
+
+    // Match the known leaked metadata envelope:
+    // { type: "output", data: { parentUuid, sessionId, userType, ... } }
+    if (record.type === 'output' && typeof record.data === 'object' && record.data !== null) {
+        const data = record.data as Record<string, unknown>;
+        return typeof data.parentUuid === 'string'
+            && typeof data.sessionId === 'string'
+            && typeof data.userType === 'string';
     }
 
     return false;
