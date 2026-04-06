@@ -253,7 +253,7 @@ describe('normalizeDecryptedMessage', () => {
         })
     })
 
-    it('does not treat non-sidechain array-content user output as sidechain', () => {
+    it('normalizes non-sidechain text-only array-content user output as user message', () => {
         const message = makeMessage({
             role: 'agent',
             content: {
@@ -269,14 +269,13 @@ describe('normalizeDecryptedMessage', () => {
 
         const normalized = normalizeDecryptedMessage(message)
 
-        // Non-sidechain array content falls through to the normal array
-        // processing path and is emitted as role:'agent' with text blocks.
-        // This is expected: the CLI wraps all non-string-content user
-        // messages as agent output (apiSession.ts:367). Changing that is
-        // a separate upstream concern, not part of this sidechain fix.
-        if (normalized?.role === 'agent') {
-            const hasSidechain = normalized.content.some(c => c.type === 'sidechain')
-            expect(hasSidechain).toBe(false)
-        }
+        // Non-sidechain array content with only text blocks should be
+        // emitted as a user message (the CLI wraps these as agent output
+        // because isExternalUserMessage rejects array content).
+        expect(normalized).toMatchObject({
+            role: 'user',
+            isSidechain: false,
+            content: { type: 'text', text: 'Regular user message' }
+        })
     })
 })
