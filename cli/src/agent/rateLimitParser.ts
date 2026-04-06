@@ -71,7 +71,7 @@ export function parseRateLimitText(text: string): RateLimitResult {
         return { suppress: true };
     }
 
-    // Unknown status — return null so the original text passes through.
-    // Suppressing unknown statuses risks hiding important new events.
-    return null;
+    // Unknown status — suppress to prevent raw JSON from leaking into chat.
+    // If a new status needs to be displayed, add an explicit branch above.
+    return { suppress: true };
 }

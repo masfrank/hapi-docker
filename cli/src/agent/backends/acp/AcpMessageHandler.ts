@@ -2,6 +2,7 @@ import type { AgentMessage, PlanItem } from '@/agent/types';
 import { asString, isObject } from '@hapi/protocol';
 import { deriveToolNameWithSource, isPlaceholderToolName } from '@/agent/utils';
 import { parseRateLimitText } from '@/agent/rateLimitParser';
+import { isInternalEventJson } from '@/agent/internalEventFilter';
 import { ACP_SESSION_UPDATE_TYPES } from './constants';
 
 function normalizeStatus(status: unknown): 'pending' | 'in_progress' | 'completed' | 'failed' {
@@ -165,6 +166,11 @@ export class AcpMessageHandler {
                     }
                     this.flushText();
                     this.onMessage(rateLimit.message);
+                    return;
+                }
+                // Drop internal event JSON (e.g. { type: "output", data: { ... } })
+                // that should never appear as visible text.
+                if (isInternalEventJson(text)) {
                     return;
                 }
                 this.appendTextChunk(text);
