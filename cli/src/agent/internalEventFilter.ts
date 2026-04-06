@@ -28,7 +28,8 @@ export function isInternalEventJson(text: string): boolean {
     // { type: "output", data: { parentUuid, sessionId, userType, ... } }
     if (record.type === 'output' && typeof record.data === 'object' && record.data !== null) {
         const data = record.data as Record<string, unknown>;
-        return typeof data.parentUuid === 'string'
+        const hasParentUuid = typeof data.parentUuid === 'string' || data.parentUuid === null;
+        return hasParentUuid
             && typeof data.sessionId === 'string'
             && typeof data.userType === 'string';
     }

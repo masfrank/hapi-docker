@@ -39,6 +39,18 @@ describe('isInternalEventJson', () => {
         expect(isInternalEventJson(json)).toBe(true);
     });
 
+    it('returns true for root metadata envelope with parentUuid: null', () => {
+        const json = JSON.stringify({
+            type: 'output',
+            data: {
+                parentUuid: null,
+                sessionId: '123',
+                userType: 'external',
+            },
+        });
+        expect(isInternalEventJson(json)).toBe(true);
+    });
+
     it('returns false for output with non-metadata data', () => {
         // Legitimate output that happens to have type "output" but different data shape
         const json = JSON.stringify({
