@@ -259,7 +259,8 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     eventTurnId,
                     currentTurnId: this.currentTurnId,
                     turnInFlight,
-                    allowAnonymousTerminalEvent
+                    allowAnonymousTerminalEvent,
+                    allowAnonymousForActiveTurn: msgType === 'task_failed' && !eventTurnId
                 })) {
                     logger.debug(
                         `[Codex] Ignoring terminal event ${msgType} without matching turn context; ` +

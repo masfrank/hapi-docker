@@ -136,6 +136,17 @@ describe('AppServerEventConverter', () => {
         expect(events).toEqual([{ type: 'turn_diff', unified_diff: 'diff --git a b' }]);
     });
 
+    it('handles thread status changes without treating them as unhandled notifications', () => {
+        const converter = new AppServerEventConverter();
+
+        const events = converter.handleNotification('thread/status/changed', {
+            threadId: 'thread-1',
+            status: { type: 'systemError' }
+        });
+
+        expect(events).toEqual([]);
+    });
+
     it('unwraps codex/event task lifecycle', () => {
         const converter = new AppServerEventConverter();
 

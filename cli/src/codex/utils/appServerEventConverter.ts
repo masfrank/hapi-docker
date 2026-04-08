@@ -257,6 +257,10 @@ export class AppServerEventConverter {
             return events;
         }
 
+        if (method === 'thread/status/changed') {
+            return events;
+        }
+
         if (method === 'thread/started' || method === 'thread/resumed') {
             const thread = asRecord(paramsRecord.thread) ?? paramsRecord;
             const threadId = asString(thread.threadId ?? thread.thread_id ?? thread.id);
