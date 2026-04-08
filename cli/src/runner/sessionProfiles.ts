@@ -1,4 +1,5 @@
 import type { PermissionMode } from '@hapi/protocol/types'
+import type { CodexCollaborationMode } from '@hapi/protocol/types'
 import type { SpawnSessionOptions } from '@/modules/common/rpcTypes'
 import { readMachineSessionProfiles } from '@/persistence'
 
@@ -32,11 +33,14 @@ export function buildSpawnProfileEnv(profileId?: string | null): Record<string, 
     }
 }
 
-export function buildCodexSpawnModeEnv(permissionMode: PermissionMode): Record<string, string> {
-    if (permissionMode === 'default') {
-        return {}
-    }
+export function buildCodexSpawnModeEnv(
+    permissionMode: PermissionMode,
+    collaborationMode?: CodexCollaborationMode
+): Record<string, string> {
     return {
-        HAPI_CODEX_PERMISSION_MODE: permissionMode
+        ...(permissionMode === 'default' ? {} : { HAPI_CODEX_PERMISSION_MODE: permissionMode }),
+        ...(collaborationMode && collaborationMode !== 'default'
+            ? { HAPI_CODEX_COLLABORATION_MODE: collaborationMode }
+            : {})
     }
 }

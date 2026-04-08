@@ -9,6 +9,7 @@ export interface SpawnSessionOptions {
     effort?: string
     modelReasoningEffort?: string
     permissionMode?: 'default' | 'read-only' | 'safe-yolo' | 'yolo'
+    collaborationMode?: 'default' | 'plan'
     yolo?: boolean
     profileId?: string | null
     token?: string

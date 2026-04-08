@@ -105,7 +105,7 @@ describe('machines routes', () => {
         expect(updateMachineSessionProfilesCalls).toEqual([['machine-1', payload]])
     })
 
-    it('forwards permissionMode and profileId in spawn requests', async () => {
+    it('forwards permissionMode, collaborationMode, and profileId in spawn requests', async () => {
         const { app, spawnSessionCalls } = createApp()
 
         const response = await app.request('/api/machines/machine-1/spawn', {
@@ -117,6 +117,7 @@ describe('machines routes', () => {
                 model: 'gpt-5.4',
                 modelReasoningEffort: 'high',
                 permissionMode: 'safe-yolo',
+                collaborationMode: 'plan',
                 sessionType: 'worktree',
                 worktreeName: 'feature-x',
                 effort: 'max',
@@ -133,6 +134,7 @@ describe('machines routes', () => {
             'gpt-5.4',
             'high',
             'safe-yolo',
+            'plan',
             'worktree',
             'feature-x',
             undefined,

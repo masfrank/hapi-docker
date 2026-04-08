@@ -90,4 +90,14 @@ describe('runner session profile helpers', () => {
         })
         expect(sessionProfiles.buildSpawnProfileEnv(null)).toEqual({})
     })
+
+    it('builds Codex mode env for non-default permission and collaboration modes', async () => {
+        const { sessionProfiles } = await loadRunnerSessionProfilesWithHome(homeDir)
+
+        expect(sessionProfiles.buildCodexSpawnModeEnv('safe-yolo', 'plan')).toEqual({
+            HAPI_CODEX_PERMISSION_MODE: 'safe-yolo',
+            HAPI_CODEX_COLLABORATION_MODE: 'plan'
+        })
+        expect(sessionProfiles.buildCodexSpawnModeEnv('default', 'default')).toEqual({})
+    })
 })

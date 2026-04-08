@@ -356,7 +356,7 @@ export async function startRunner(): Promise<void> {
         if (agent === 'codex') {
           extraEnv = {
             ...extraEnv,
-            ...buildCodexSpawnModeEnv(permissionMode)
+            ...buildCodexSpawnModeEnv(permissionMode, options.collaborationMode)
           };
         }
 

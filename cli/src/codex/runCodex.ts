@@ -30,6 +30,16 @@ function readInitialPermissionModeFromEnv(): PermissionMode | undefined {
     return parsed.data as PermissionMode;
 }
 
+function readInitialCollaborationModeFromEnv(): EnhancedMode['collaborationMode'] | undefined {
+    const value = process.env.HAPI_CODEX_COLLABORATION_MODE;
+    if (!value) {
+        return undefined;
+    }
+
+    const parsed = CodexCollaborationModeSchema.safeParse(value);
+    return parsed.success ? parsed.data : undefined;
+}
+
 export async function runCodex(opts: {
     startedBy?: 'runner' | 'terminal';
     codexArgs?: string[];
@@ -71,7 +81,7 @@ export async function runCodex(opts: {
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? readInitialPermissionModeFromEnv() ?? 'default';
     let currentModel = opts.model;
     const currentModelReasoningEffort = opts.modelReasoningEffort;
-    let currentCollaborationMode: EnhancedMode['collaborationMode'] = 'default';
+    let currentCollaborationMode: EnhancedMode['collaborationMode'] = readInitialCollaborationModeFromEnv() ?? 'default';
 
     const lifecycle = createRunnerLifecycle({
         session,
