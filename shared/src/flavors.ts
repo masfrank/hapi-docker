@@ -4,6 +4,7 @@ import type { AgentFlavor } from './modes'
 export const Capabilities = {
     ModelChange: 'model-change',
     Effort: 'effort',
+    ModelReasoningEffort: 'model-reasoning-effort',
 } as const
 
 export type Capability = typeof Capabilities[keyof typeof Capabilities]
@@ -12,7 +13,7 @@ export type Capability = typeof Capabilities[keyof typeof Capabilities]
 const FLAVOR_CAPS: Record<AgentFlavor, ReadonlySet<Capability>> = {
     claude: new Set([Capabilities.ModelChange, Capabilities.Effort]),
     gemini: new Set([Capabilities.ModelChange]),
-    codex: new Set([]),
+    codex: new Set([Capabilities.ModelReasoningEffort]),
     cursor: new Set([]),
     opencode: new Set([]),
 }
@@ -48,4 +49,8 @@ export function supportsModelChange(flavor: string | null | undefined): boolean 
 
 export function supportsEffort(flavor: string | null | undefined): boolean {
     return hasCapability(flavor, Capabilities.Effort)
+}
+
+export function supportsModelReasoningEffort(flavor: string | null | undefined): boolean {
+    return hasCapability(flavor, Capabilities.ModelReasoningEffort)
 }

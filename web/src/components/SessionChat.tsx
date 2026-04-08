@@ -63,7 +63,7 @@ export function SessionChat(props: {
     const agentFlavor = props.session.metadata?.flavor ?? null
     const controlledByUser = props.session.agentState?.controlledByUser === true
     const codexCollaborationModeSupported = agentFlavor === 'codex' && !controlledByUser
-    const { abortSession, switchSession, setPermissionMode, setCollaborationMode, setModel, setEffort } = useSessionActions(
+    const { abortSession, switchSession, setPermissionMode, setCollaborationMode, setModel, setEffort, setModelReasoningEffort } = useSessionActions(
         props.api,
         props.session.id,
         agentFlavor,
@@ -257,6 +257,17 @@ export function SessionChat(props: {
         }
     }, [setEffort, props.onRefresh, haptic])
 
+    const handleModelReasoningEffortChange = useCallback(async (modelReasoningEffort: string | null) => {
+        try {
+            await setModelReasoningEffort(modelReasoningEffort)
+            haptic.notification('success')
+            props.onRefresh()
+        } catch (e) {
+            haptic.notification('error')
+            console.error('Failed to set model reasoning effort:', e)
+        }
+    }, [setModelReasoningEffort, props.onRefresh, haptic])
+
     // Abort handler
     const handleAbort = useCallback(async () => {
         await abortSession()
@@ -374,6 +385,7 @@ export function SessionChat(props: {
                         collaborationMode={codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
                         model={props.session.model}
                         effort={props.session.effort}
+                        modelReasoningEffort={props.session.modelReasoningEffort}
                         agentFlavor={agentFlavor}
                         active={props.session.active}
                         allowSendWhenInactive
@@ -389,6 +401,7 @@ export function SessionChat(props: {
                         onPermissionModeChange={handlePermissionModeChange}
                         onModelChange={handleModelChange}
                         onEffortChange={handleEffortChange}
+                        onModelReasoningEffortChange={props.session.active ? handleModelReasoningEffortChange : undefined}
                         onSwitchToRemote={handleSwitchToRemote}
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}

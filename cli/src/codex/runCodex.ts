@@ -37,7 +37,8 @@ export async function runCodex(opts: {
         startedBy,
         workingDirectory,
         agentState: state,
-        model: opts.model
+        model: opts.model,
+        modelReasoningEffort: opts.modelReasoningEffort
     });
 
     const startingMode: 'local' | 'remote' = startedBy === 'runner' ? 'remote' : 'local';
@@ -56,7 +57,7 @@ export async function runCodex(opts: {
 
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
     let currentModel = opts.model;
-    const currentModelReasoningEffort = opts.modelReasoningEffort;
+    let currentModelReasoningEffort = opts.modelReasoningEffort;
     let currentCollaborationMode: EnhancedMode['collaborationMode'] = 'default';
 
     const lifecycle = createRunnerLifecycle({
@@ -145,11 +146,21 @@ export async function runCodex(opts: {
         return parsed.data;
     };
 
+    const resolveModelReasoningEffort = (value: unknown): ReasoningEffort | undefined => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value !== 'string') {
+            throw new Error('Invalid model reasoning effort');
+        }
+        return value as ReasoningEffort;
+    };
+
     session.rpcHandlerManager.registerHandler('set-session-config', async (payload: unknown) => {
         if (!payload || typeof payload !== 'object') {
             throw new Error('Invalid session config payload');
         }
-        const config = payload as { permissionMode?: unknown; collaborationMode?: unknown };
+        const config = payload as { permissionMode?: unknown; collaborationMode?: unknown; modelReasoningEffort?: unknown };
 
         if (config.permissionMode !== undefined) {
             currentPermissionMode = resolvePermissionMode(config.permissionMode);
@@ -159,8 +170,12 @@ export async function runCodex(opts: {
             currentCollaborationMode = resolveCollaborationMode(config.collaborationMode);
         }
 
+        if ('modelReasoningEffort' in config) {
+            currentModelReasoningEffort = resolveModelReasoningEffort(config.modelReasoningEffort);
+        }
+
         syncSessionMode();
-        return { applied: { permissionMode: currentPermissionMode, collaborationMode: currentCollaborationMode } };
+        return { applied: { permissionMode: currentPermissionMode, collaborationMode: currentCollaborationMode, modelReasoningEffort: currentModelReasoningEffort ?? null } };
     });
 
     try {

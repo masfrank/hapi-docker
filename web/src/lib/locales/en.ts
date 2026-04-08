@@ -279,6 +279,7 @@ export default {
   'misc.permissionMode': 'Permission Mode',
   'misc.model': 'Model',
   'misc.effort': 'Effort',
+  'misc.reasoningEffort': 'Reasoning Effort',
   'misc.loading': 'Loading…',
   'misc.loadOlder': 'Load older',
   'misc.newMessage': '{n} new message{s}',

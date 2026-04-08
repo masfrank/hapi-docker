@@ -95,6 +95,7 @@ export class RpcGateway {
             permissionMode?: PermissionMode
             model?: string | null
             effort?: string | null
+            modelReasoningEffort?: string | null
             collaborationMode?: CodexCollaborationMode
         }
     ): Promise<unknown> {

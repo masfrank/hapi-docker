@@ -6,6 +6,7 @@ import {
     isKnownFlavor,
     supportsEffort,
     supportsModelChange,
+    supportsModelReasoningEffort,
 } from './flavors'
 
 describe('hasCapability', () => {
@@ -25,6 +26,10 @@ describe('hasCapability', () => {
     test('codex has no capabilities', () => {
         expect(hasCapability('codex', Capabilities.ModelChange)).toBe(false)
         expect(hasCapability('codex', Capabilities.Effort)).toBe(false)
+    })
+
+    test('codex supports model-reasoning-effort', () => {
+        expect(hasCapability('codex', Capabilities.ModelReasoningEffort)).toBe(true)
     })
 
     test('cursor has no capabilities', () => {
@@ -95,5 +100,12 @@ describe('convenience functions', () => {
         expect(supportsEffort('codex')).toBe(false)
         expect(supportsEffort('gemini')).toBe(false)
         expect(supportsEffort(null)).toBe(false)
+    })
+
+    test('supportsModelReasoningEffort matches hasCapability', () => {
+        expect(supportsModelReasoningEffort('codex')).toBe(true)
+        expect(supportsModelReasoningEffort('claude')).toBe(false)
+        expect(supportsModelReasoningEffort('gemini')).toBe(false)
+        expect(supportsModelReasoningEffort(null)).toBe(false)
     })
 })

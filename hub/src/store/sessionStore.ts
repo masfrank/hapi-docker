@@ -10,6 +10,7 @@ import {
     getSessionsByNamespace,
     setSessionEffort,
     setSessionModel,
+    setSessionModelReasoningEffort,
     setSessionTeamState,
     setSessionTodos,
     updateSessionAgentState,
@@ -29,9 +30,10 @@ export class SessionStore {
         agentState: unknown,
         namespace: string,
         model?: string,
-        effort?: string
+        effort?: string,
+        modelReasoningEffort?: string
     ): StoredSession {
-        return getOrCreateSession(this.db, tag, metadata, agentState, namespace, model, effort)
+        return getOrCreateSession(this.db, tag, metadata, agentState, namespace, model, effort, modelReasoningEffort)
     }
 
     updateSessionMetadata(
@@ -67,6 +69,10 @@ export class SessionStore {
 
     setSessionEffort(id: string, effort: string | null, namespace: string, options?: { touchUpdatedAt?: boolean }): boolean {
         return setSessionEffort(this.db, id, effort, namespace, options)
+    }
+
+    setSessionModelReasoningEffort(id: string, modelReasoningEffort: string | null, namespace: string, options?: { touchUpdatedAt?: boolean }): boolean {
+        return setSessionModelReasoningEffort(this.db, id, modelReasoningEffort, namespace, options)
     }
 
     getSession(id: string): StoredSession | null {

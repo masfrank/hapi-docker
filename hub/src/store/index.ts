@@ -22,7 +22,7 @@ export { PushStore } from './pushStore'
 export { SessionStore } from './sessionStore'
 export { UserStore } from './userStore'
 
-const SCHEMA_VERSION: number = 6
+const SCHEMA_VERSION: number = 7
 const REQUIRED_TABLES = [
     'sessions',
     'machines',
@@ -135,6 +135,27 @@ export class Store {
             return
         }
 
+        if (currentVersion === 5 && SCHEMA_VERSION === 7) {
+            this.migrateFromV5ToV6()
+            this.migrateFromV6ToV7()
+            this.setUserVersion(SCHEMA_VERSION)
+            return
+        }
+
+        if (currentVersion === 6 && SCHEMA_VERSION === 7) {
+            this.migrateFromV6ToV7()
+            this.setUserVersion(SCHEMA_VERSION)
+            return
+        }
+
+        if (currentVersion === 4 && SCHEMA_VERSION === 7) {
+            this.migrateFromV4ToV5()
+            this.migrateFromV5ToV6()
+            this.migrateFromV6ToV7()
+            this.setUserVersion(SCHEMA_VERSION)
+            return
+        }
+
         if (currentVersion !== SCHEMA_VERSION) {
             throw this.buildSchemaMismatchError(currentVersion)
         }
@@ -157,6 +178,7 @@ export class Store {
                 agent_state_version INTEGER DEFAULT 1,
                 model TEXT,
                 effort TEXT,
+                model_reasoning_effort TEXT,
                 todos TEXT,
                 todos_updated_at INTEGER,
                 team_state TEXT,
@@ -330,6 +352,13 @@ export class Store {
         const columns = this.getSessionColumnNames()
         if (!columns.has('effort')) {
             this.db.exec('ALTER TABLE sessions ADD COLUMN effort TEXT')
+        }
+    }
+
+    private migrateFromV6ToV7(): void {
+        const columns = this.getSessionColumnNames()
+        if (!columns.has('model_reasoning_effort')) {
+            this.db.exec('ALTER TABLE sessions ADD COLUMN model_reasoning_effort TEXT')
         }
     }
 

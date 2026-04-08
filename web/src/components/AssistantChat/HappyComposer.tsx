@@ -20,7 +20,7 @@ import { useActiveSuggestions } from '@/hooks/useActiveSuggestions'
 import { applySuggestion } from '@/utils/applySuggestion'
 import { usePlatform } from '@/hooks/usePlatform'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
-import { supportsEffort, supportsModelChange } from '@hapi/protocol'
+import { supportsEffort, supportsModelChange, supportsModelReasoningEffort } from '@hapi/protocol'
 import { markSkillUsed } from '@/lib/recent-skills'
 import { FloatingOverlay } from '@/components/ChatInput/FloatingOverlay'
 import { Autocomplete } from '@/components/ChatInput/Autocomplete'
@@ -30,6 +30,7 @@ import { AttachmentItem } from '@/components/AssistantChat/AttachmentItem'
 import { useTranslation } from '@/lib/use-translation'
 import { getModelOptionsForFlavor, getNextModelForFlavor } from './modelOptions'
 import { getClaudeComposerEffortOptions } from './claudeEffortOptions'
+import { CODEX_REASONING_EFFORT_OPTIONS } from '@/components/NewSession/types'
 
 export interface TextInputState {
     text: string
@@ -44,6 +45,7 @@ export function HappyComposer(props: {
     collaborationMode?: CodexCollaborationMode
     model?: string | null
     effort?: string | null
+    modelReasoningEffort?: string | null
     active?: boolean
     allowSendWhenInactive?: boolean
     thinking?: boolean
@@ -55,6 +57,7 @@ export function HappyComposer(props: {
     onPermissionModeChange?: (mode: PermissionMode) => void
     onModelChange?: (model: string | null) => void
     onEffortChange?: (effort: string | null) => void
+    onModelReasoningEffortChange?: (modelReasoningEffort: string | null) => void
     onSwitchToRemote?: () => void
     onTerminal?: () => void
     terminalUnsupported?: boolean
@@ -73,6 +76,7 @@ export function HappyComposer(props: {
         collaborationMode: rawCollaborationMode,
         model: rawModel,
         effort: rawEffort,
+        modelReasoningEffort: rawModelReasoningEffort,
         active = true,
         allowSendWhenInactive = false,
         thinking = false,
@@ -84,6 +88,7 @@ export function HappyComposer(props: {
         onPermissionModeChange,
         onModelChange,
         onEffortChange,
+        onModelReasoningEffortChange,
         onSwitchToRemote,
         onTerminal,
         terminalUnsupported = false,
@@ -100,6 +105,7 @@ export function HappyComposer(props: {
     const collaborationMode = rawCollaborationMode ?? 'default'
     const model = rawModel ?? null
     const effort = rawEffort ?? null
+    const modelReasoningEffort = rawModelReasoningEffort ?? null
 
     const api = useAssistantApi()
     const composerText = useAssistantState(({ composer }) => composer.text)
@@ -437,11 +443,19 @@ export function HappyComposer(props: {
         haptic('light')
     }, [onEffortChange, controlsDisabled, haptic])
 
+    const handleModelReasoningEffortChange = useCallback((nextModelReasoningEffort: string | null) => {
+        if (!onModelReasoningEffortChange || controlsDisabled) return
+        onModelReasoningEffortChange(nextModelReasoningEffort)
+        setShowSettings(false)
+        haptic('light')
+    }, [onModelReasoningEffortChange, controlsDisabled, haptic])
+
     const showCollaborationSettings = Boolean(onCollaborationModeChange && collaborationModeOptions.length > 0)
     const showPermissionSettings = Boolean(onPermissionModeChange && permissionModeOptions.length > 0)
     const showModelSettings = Boolean(onModelChange && supportsModelChange(agentFlavor))
     const showEffortSettings = Boolean(onEffortChange && supportsEffort(agentFlavor))
-    const showSettingsButton = Boolean(showCollaborationSettings || showPermissionSettings || showModelSettings || showEffortSettings)
+    const showModelReasoningEffortSettings = Boolean(onModelReasoningEffortChange && supportsModelReasoningEffort(agentFlavor))
+    const showSettingsButton = Boolean(showCollaborationSettings || showPermissionSettings || showModelSettings || showEffortSettings || showModelReasoningEffortSettings)
     const showAbortButton = true
     const voiceEnabled = Boolean(onVoiceToggle)
 
@@ -450,7 +464,7 @@ export function HappyComposer(props: {
     }, [api])
 
     const overlays = useMemo(() => {
-        if (showSettings && (showCollaborationSettings || showPermissionSettings || showModelSettings || showEffortSettings)) {
+        if (showSettings && (showCollaborationSettings || showPermissionSettings || showModelSettings || showEffortSettings || showModelReasoningEffortSettings)) {
             return (
                 <div className="absolute bottom-[100%] mb-2 w-full">
                     <FloatingOverlay maxHeight={320}>
@@ -613,6 +627,43 @@ export function HappyComposer(props: {
                                 ))}
                             </div>
                         ) : null}
+
+                        {showModelReasoningEffortSettings ? (
+                            <div className="py-2">
+                                <div className="px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
+                                    {t('misc.reasoningEffort')}
+                                </div>
+                                {CODEX_REASONING_EFFORT_OPTIONS.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        disabled={controlsDisabled}
+                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                                            controlsDisabled
+                                                ? 'cursor-not-allowed opacity-50'
+                                                : 'cursor-pointer hover:bg-[var(--app-secondary-bg)]'
+                                        }`}
+                                        onClick={() => handleModelReasoningEffortChange(option.value === 'default' ? null : option.value)}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                    >
+                                        <div
+                                            className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${
+                                                (modelReasoningEffort ?? 'default') === option.value
+                                                    ? 'border-[var(--app-link)]'
+                                                    : 'border-[var(--app-hint)]'
+                                            }`}
+                                        >
+                                            {(modelReasoningEffort ?? 'default') === option.value && (
+                                                <div className="h-2 w-2 rounded-full bg-[var(--app-link)]" />
+                                            )}
+                                        </div>
+                                        <span className={(modelReasoningEffort ?? 'default') === option.value ? 'text-[var(--app-link)]' : ''}>
+                                            {option.label}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : null}
                     </FloatingOverlay>
                 </div>
             )
@@ -639,6 +690,7 @@ export function HappyComposer(props: {
         showPermissionSettings,
         showModelSettings,
         showEffortSettings,
+        showModelReasoningEffortSettings,
         claudeModelOptions,
         claudeEffortOptions,
         suggestions,
@@ -648,12 +700,14 @@ export function HappyComposer(props: {
         permissionMode,
         model,
         effort,
+        modelReasoningEffort,
         collaborationModeOptions,
         permissionModeOptions,
         handleCollaborationChange,
         handlePermissionChange,
         handleModelChange,
         handleEffortChange,
+        handleModelReasoningEffortChange,
         handleSuggestionSelect,
         t
     ])

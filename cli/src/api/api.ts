@@ -20,6 +20,7 @@ export class ApiClient {
         state: AgentState | null
         model?: string
         effort?: string
+        modelReasoningEffort?: string
     }): Promise<Session> {
         const response = await axios.post<CreateSessionResponse>(
             `${configuration.apiUrl}/cli/sessions`,
@@ -28,7 +29,8 @@ export class ApiClient {
                 metadata: opts.metadata,
                 agentState: opts.state,
                 model: opts.model,
-                effort: opts.effort
+                effort: opts.effort,
+                modelReasoningEffort: opts.modelReasoningEffort
             },
             {
                 headers: {

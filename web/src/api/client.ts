@@ -334,6 +334,13 @@ export class ApiClient {
         })
     }
 
+    async setModelReasoningEffort(sessionId: string, modelReasoningEffort: string | null): Promise<void> {
+        await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/model-reasoning-effort`, {
+            method: 'POST',
+            body: JSON.stringify({ modelReasoningEffort })
+        })
+    }
+
     async approvePermission(
         sessionId: string,
         requestId: string,

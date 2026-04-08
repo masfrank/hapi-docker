@@ -176,6 +176,7 @@ export const SessionSchema = z.object({
     teamState: TeamStateSchema.optional(),
     model: z.string().nullable(),
     effort: z.string().nullable(),
+    modelReasoningEffort: z.string().nullable().optional(),
     permissionMode: PermissionModeSchema.optional(),
     collaborationMode: CodexCollaborationModeSchema.optional()
 })

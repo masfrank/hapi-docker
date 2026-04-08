@@ -61,9 +61,10 @@ export class SessionCache {
         agentState: unknown,
         namespace: string,
         model?: string,
-        effort?: string
+        effort?: string,
+        modelReasoningEffort?: string
     ): Session {
-        const stored = this.store.sessions.getOrCreateSession(tag, metadata, agentState, namespace, model, effort)
+        const stored = this.store.sessions.getOrCreateSession(tag, metadata, agentState, namespace, model, effort, modelReasoningEffort)
         return this.refreshSession(stored.id) ?? (() => { throw new Error('Failed to load session') })()
     }
 
@@ -135,6 +136,7 @@ export class SessionCache {
             teamState,
             model: stored.model,
             effort: stored.effort,
+            modelReasoningEffort: stored.modelReasoningEffort ?? undefined,
             permissionMode: existing?.permissionMode,
             collaborationMode: existing?.collaborationMode
         }
@@ -265,6 +267,7 @@ export class SessionCache {
             permissionMode?: PermissionMode
             model?: string | null
             effort?: string | null
+            modelReasoningEffort?: string | null
             collaborationMode?: CodexCollaborationMode
         }
     ): void {
@@ -297,6 +300,18 @@ export class SessionCache {
                 }
             }
             session.effort = config.effort
+        }
+        if (config.modelReasoningEffort !== undefined) {
+            const currentMre = session.modelReasoningEffort ?? null
+            if (config.modelReasoningEffort !== currentMre) {
+                const updated = this.store.sessions.setSessionModelReasoningEffort(sessionId, config.modelReasoningEffort, session.namespace, {
+                    touchUpdatedAt: false
+                })
+                if (!updated) {
+                    throw new Error('Failed to update session model reasoning effort')
+                }
+            }
+            session.modelReasoningEffort = config.modelReasoningEffort ?? undefined
         }
         if (config.collaborationMode !== undefined) {
             session.collaborationMode = config.collaborationMode
@@ -404,6 +419,15 @@ export class SessionCache {
             })
             if (!updated) {
                 throw new Error('Failed to preserve session effort during merge')
+            }
+        }
+
+        if (newStored.modelReasoningEffort === null && oldStored.modelReasoningEffort !== null) {
+            const updated = this.store.sessions.setSessionModelReasoningEffort(newSessionId, oldStored.modelReasoningEffort, namespace, {
+                touchUpdatedAt: false
+            })
+            if (!updated) {
+                throw new Error('Failed to preserve session model reasoning effort during merge')
             }
         }
 

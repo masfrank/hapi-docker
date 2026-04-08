@@ -281,6 +281,7 @@ export default {
   'misc.permissionMode': '权限模式',
   'misc.model': '模型',
   'misc.effort': '思考强度',
+  'misc.reasoningEffort': '推理强度',
   'misc.loading': '加载中…',
   'misc.loadOlder': '加载更早的',
   'misc.newMessage': '{n} 条新消息',
