@@ -364,7 +364,10 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
                 this.session.setPermissionMode(permissionMode);
 
                 if (implementationMode === 'clear_context') {
-                    logger.debug('Plan approved - clearing Claude session ID before fresh-context restart');
+                    logger.debug('Plan approved - clearing Claude session ID and session-scoped permissions before fresh-context restart');
+                    this.allowedTools.clear();
+                    this.allowedBashLiterals.clear();
+                    this.allowedBashPrefixes.clear();
                     this.session.clearSessionId();
                 }
 

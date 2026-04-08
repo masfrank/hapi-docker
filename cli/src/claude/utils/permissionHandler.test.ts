@@ -257,6 +257,118 @@ describe('PermissionHandler exit_plan_mode', () => {
         });
     });
 
+    it('clears session-scoped tool allowlists on clear_context so stale approvals do not carry over', async () => {
+        const { session, rpcHandlers } = createSessionStub();
+        const permissionHandler = new PermissionHandler(session as never);
+
+        // Step 1: Approve a Write tool "for session" so it's added to allowedTools
+        permissionHandler.onMessage({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    id: 'tool-write-1',
+                    name: 'Write',
+                    input: { file_path: 'foo.ts', content: 'hi' }
+                }]
+            }
+        } as never);
+
+        const writeCall = permissionHandler.handleToolCall(
+            'Write',
+            { file_path: 'foo.ts', content: 'hi' },
+            { permissionMode: 'default' } as never,
+            { signal: new AbortController().signal }
+        );
+
+        const rpc1 = rpcHandlers.get('permission')!;
+        await rpc1({
+            id: 'tool-write-1',
+            approved: true,
+            decision: 'approved_for_session',
+            allowTools: ['Write']
+        });
+        await writeCall;
+
+        // Step 2: Same tool is now auto-allowed (no permission needed)
+        permissionHandler.onMessage({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    id: 'tool-write-2',
+                    name: 'Write',
+                    input: { file_path: 'bar.ts', content: 'hi' }
+                }]
+            }
+        } as never);
+
+        const autoResult = await permissionHandler.handleToolCall(
+            'Write',
+            { file_path: 'bar.ts', content: 'hi' },
+            { permissionMode: 'default' } as never,
+            { signal: new AbortController().signal }
+        );
+        expect(autoResult.behavior).toBe('allow');
+
+        // Step 3: Trigger clear_context exit plan
+        permissionHandler.onMessage({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    id: 'tool-exit-clear',
+                    name: 'exit_plan_mode',
+                    input: { plan: 'Fresh start' }
+                }]
+            }
+        } as never);
+
+        const exitCall = permissionHandler.handleToolCall(
+            'exit_plan_mode',
+            { plan: 'Fresh start' },
+            { permissionMode: 'plan' } as never,
+            { signal: new AbortController().signal }
+        );
+
+        const rpc2 = rpcHandlers.get('permission')!;
+        await rpc2({
+            id: 'tool-exit-clear',
+            approved: true,
+            mode: 'default',
+            implementationMode: 'clear_context'
+        });
+        await exitCall;
+
+        // Step 4: Write should now require permission again (no longer auto-allowed)
+        const abortController = new AbortController();
+        permissionHandler.onMessage({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    id: 'tool-write-3',
+                    name: 'Write',
+                    input: { file_path: 'baz.ts', content: 'hi' }
+                }]
+            }
+        } as never);
+
+        const postClearCall = permissionHandler.handleToolCall(
+            'Write',
+            { file_path: 'baz.ts', content: 'hi' },
+            { permissionMode: 'default' } as never,
+            { signal: abortController.signal }
+        );
+
+        abortController.abort();
+        await expect(postClearCall).rejects.toThrow('Permission request aborted');
+    });
+
     it('normalizes invalid post-plan modes to default before updating session state', async () => {
         const { session, rpcHandlers, getAgentState } = createSessionStub();
         const permissionHandler = new PermissionHandler(session as never);
