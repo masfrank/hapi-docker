@@ -269,6 +269,41 @@ describe('SDKToLogConverter', () => {
         })
     })
 
+    describe('Internal event filtering', () => {
+        it('should drop rate_limit_event messages', () => {
+            const sdkMessage = {
+                type: 'rate_limit_event',
+                rate_limit_info: {
+                    status: 'allowed',
+                    resetsAt: 1775559600,
+                    rateLimitType: 'five_hour'
+                }
+            } as unknown as SDKMessage
+
+            const logMessage = converter.convert(sdkMessage)
+
+            expect(logMessage).toBeNull()
+        })
+
+        it('should not break parent chain when rate_limit_event is dropped', () => {
+            const user = converter.convert({
+                type: 'user',
+                message: { role: 'user', content: 'hi' }
+            } as SDKUserMessage)
+
+            converter.convert({
+                type: 'rate_limit_event',
+            } as unknown as SDKMessage)
+
+            const assistant = converter.convert({
+                type: 'assistant',
+                message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] }
+            } as SDKAssistantMessage)
+
+            expect(assistant!.parentUuid).toBe(user!.uuid)
+        })
+    })
+
     describe('Convenience function', () => {
         it('should convert single message without state', () => {
             const sdkMessage: SDKUserMessage = {

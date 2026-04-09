@@ -90,6 +90,8 @@ export class SDKToLogConverter {
      * Convert SDK message to log format
      */
     convert(sdkMessage: SDKMessage): RawJSONLines | null {
+        if (sdkMessage.type === 'rate_limit_event') return null
+
         const uuid = randomUUID()
         const timestamp = new Date().toISOString()
         let parentUuid = this.lastUuid;
