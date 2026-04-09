@@ -114,12 +114,13 @@ export class SDKToLogConverter {
             return null
         }
 
+        const parentUuid = this.lastUuid
         const uuid = randomUUID()
         const timestamp = new Date().toISOString()
         this.lastUuid = uuid
 
         return {
-            parentUuid: this.lastUuid,
+            parentUuid,
             isSidechain: false,
             userType: 'external' as const,
             cwd: this.context.cwd,

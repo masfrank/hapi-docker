@@ -340,6 +340,31 @@ describe('SDKToLogConverter', () => {
 
             expect(assistant!.parentUuid).toBe(user!.uuid)
         })
+
+        it('should chain parent correctly when rate_limit_event is converted', () => {
+            const user = converter.convert({
+                type: 'user',
+                message: { role: 'user', content: 'hi' }
+            } as SDKUserMessage)
+
+            const warning = converter.convert({
+                type: 'rate_limit_event',
+                rate_limit_info: {
+                    status: 'allowed_warning',
+                    resetsAt: 1775559600,
+                    utilization: 0.8,
+                    rateLimitType: 'five_hour'
+                }
+            } as unknown as SDKMessage)
+
+            const assistant = converter.convert({
+                type: 'assistant',
+                message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] }
+            } as SDKAssistantMessage)
+
+            expect(warning!.parentUuid).toBe(user!.uuid)
+            expect(assistant!.parentUuid).toBe(warning!.uuid)
+        })
     })
 
     describe('Convenience function', () => {
