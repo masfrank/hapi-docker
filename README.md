@@ -48,6 +48,37 @@ bun install
 bun run build:single-exe
 ```
 
+## Docker
+
+Build the image locally:
+
+```bash
+docker build -t hapi:latest .
+```
+
+Run the hub with persistent data:
+
+```bash
+docker run -d \
+  --name hapi \
+  -p 3006:3006 \
+  -e CLI_API_TOKEN=change-me \
+  -e HAPI_PUBLIC_URL=http://localhost:3006 \
+  -v hapi-data:/data \
+  hapi:latest
+```
+
+The container starts `hub/dist/index.js`, serves the built web app from `web/dist`, listens on port `3006`, and stores data in `/data`.
+
+## GitHub Actions Docker build
+
+This repo now includes `.github/workflows/docker.yml` to build the Docker image on pushes, pull requests, tags, or manual runs.
+
+- GHCR image: `ghcr.io/<owner>/<repo>`
+- Optional Docker Hub image: set repository variable `DOCKERHUB_IMAGE` (for example `yourname/hapi`)
+- Required Docker Hub secrets when pushing there: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+- Manual runs can choose whether to push to GHCR / Docker Hub and can override the Docker Hub image name
+
 ## Credits
 
 HAPI means "哈皮" a Chinese transliteration of [Happy](https://github.com/slopus/happy). Great credit to the original project.

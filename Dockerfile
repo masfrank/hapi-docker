@@ -1,0 +1,41 @@
+FROM oven/bun:1 AS builder
+
+WORKDIR /app
+
+COPY package.json bun.lock* tsconfig.json ./
+COPY shared/package.json shared/package.json
+COPY hub/package.json hub/package.json
+COPY web/package.json web/package.json
+
+RUN bun install
+
+COPY shared ./shared
+COPY hub ./hub
+COPY web ./web
+
+RUN bun run build:web && bun run build:hub
+
+FROM oven/bun:1-slim AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    HAPI_LISTEN_HOST=0.0.0.0 \
+    HAPI_LISTEN_PORT=3006 \
+    HAPI_HOME=/data
+
+RUN mkdir -p /data
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/hub/dist ./hub/dist
+COPY --from=builder /app/hub/package.json ./hub/package.json
+COPY --from=builder /app/web/dist ./web/dist
+
+EXPOSE 3006
+
+VOLUME ["/data"]
+
+CMD ["bun", "run", "hub/dist/index.js"]
