@@ -3,12 +3,17 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 
 COPY package.json bun.lock tsconfig.base.json ./
+COPY cli/package.json cli/package.json
 COPY shared/package.json shared/package.json
 COPY hub/package.json hub/package.json
 COPY web/package.json web/package.json
+COPY website/package.json website/package.json
+COPY docs/package.json docs/package.json
+COPY cli/tsconfig.json cli/tsconfig.json
 COPY shared/tsconfig.json shared/tsconfig.json
 COPY hub/tsconfig.json hub/tsconfig.json
 COPY web/tsconfig.json web/tsconfig.json
+COPY website/tsconfig.json website/tsconfig.json
 COPY web/vite.config.ts web/vite.config.ts
 COPY web/postcss.config.cjs web/postcss.config.cjs
 COPY web/tailwind.config.ts web/tailwind.config.ts
@@ -44,4 +49,4 @@ EXPOSE 3006
 
 VOLUME ["/data"]
 
-CMD ["bun", "run", "hub/dist/index.js"]
+CMD ["bun", "hub/dist/index.js"]
